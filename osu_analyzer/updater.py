@@ -271,14 +271,25 @@ def apply_update_and_restart(new_exe: str) -> None:
     # Windows could show a SmartScreen warning on the restart.
     _strip_mark_of_the_web(current)
 
+    # Fresh environment for the relaunch. A PyInstaller onefile process carries
+    # internal variables (_PYI_APPLICATION_HOME_DIR / _PYI_PARENT_PROCESS_LEVEL /
+    # _MEIPASS2) that tell a spawned copy of itself to REUSE the current unpack dir
+    # instead of extracting again. After an update that is exactly wrong: the new exe
+    # would run the OLD extracted code and then crash with a FileNotFoundError once
+    # the old process's temp dir is cleaned up. Stripping them forces a clean, full
+    # extraction of the new exe.
+    env = os.environ.copy()
+    for key in [k for k in env if k.startswith("_PYI") or k.startswith("_MEIPASS")]:
+        del env[key]
+
     try:
         subprocess.Popen(
-            [current],
+            [current], env=env,
             creationflags=_DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP,
             close_fds=True,
             cwd=os.path.dirname(current) or None,
         )
-        _log("apply: relaunched new version, exiting")
+        _log("apply: relaunched new version (fresh env), exiting")
     except OSError as exc:
         _log(f"apply: relaunch failed: {exc}")
     os._exit(0)
