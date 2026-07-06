@@ -47,11 +47,11 @@ def rule_accuracy_vs_star_rating(scores: list[dict]) -> Finding | None:
     drop = (avg_acc_easier - avg_acc_harder) * 100
     if drop >= 1.5:
         return Finding(
-            "Genauigkeit sinkt bei schwierigeren Maps",
-            f"Deine Accuracy faellt bei hoeherer Sternebewertung um ca. {drop:.1f}%. "
-            "Das deutet auf ein Lese- oder Reaktionsproblem bei schwierigeren Maps hin. "
-            "Empfehlung: gezielt Maps 0.3-0.5 Sterne ueber deinem aktuellen Komfortbereich "
-            "ueben, statt direkt grosse Spruenge in der Sternebewertung zu machen.",
+            "Accuracy drops on harder maps",
+            f"Your accuracy falls by about {drop:.1f}% as star rating increases. "
+            "This points to a reading or reaction problem on harder maps. "
+            "Recommendation: deliberately practice maps 0.3-0.5 stars above your current "
+            "comfort zone instead of making big jumps in star rating.",
         )
     return None
 
@@ -74,10 +74,10 @@ def rule_mod_usage(scores: list[dict]) -> Finding | None:
     if underused:
         mods_text = ", ".join(underused)
         return Finding(
-            "Ungenutztes PP-Potenzial durch Mods",
-            f"In deinen Top-Scores tauchen die Mods {mods_text} kaum auf. Da osu!'s "
-            "PP-Formel diese Mods durch Multiplikatoren belohnt, kannst du mit gezieltem "
-            f"Farmen mit {mods_text} auf bekannten Maps vergleichsweise einfach PP gewinnen.",
+            "Untapped PP potential from mods",
+            f"The mods {mods_text} barely show up in your top scores. Since osu!'s PP "
+            "formula rewards these mods with multipliers, you can gain PP comparatively "
+            f"easily by farming known maps with {mods_text}.",
         )
     return None
 
@@ -91,11 +91,11 @@ def rule_pp_star_rating_spread(scores: list[dict]) -> Finding | None:
     if spread < 0.8:
         avg = sum(rated_srs) / len(rated_srs)
         return Finding(
-            "Enges Sternebewertungs-Fenster",
-            f"Deine Top-Scores liegen fast alle nah bei {avg:.1f} Sternen (Spanne nur "
-            f"{spread:.1f}). Du steckst wahrscheinlich in einem engen Schwierigkeitsband fest. "
-            "Empfehlung: bewusst einzelne Maps 0.5-1.0 Sterne darueber ausprobieren, um neues "
-            "PP-Potenzial zu erschliessen, statt nur im gewohnten Bereich zu grinden.",
+            "Narrow star-rating window",
+            f"Almost all your top scores sit near {avg:.1f} stars (range only "
+            f"{spread:.1f}). You're likely stuck in a narrow difficulty band. "
+            "Recommendation: deliberately try individual maps 0.5-1.0 stars higher to "
+            "unlock new PP potential instead of only grinding your usual range.",
         )
     return None
 
@@ -113,11 +113,11 @@ def rule_rank_consistency(scores: list[dict]) -> Finding | None:
 
     if ratio >= 0.3:
         return Finding(
-            "Konsistenzproblem trotz hoher PP",
-            f"{low_rank_count} von {len(scores)} Top-Scores haben nur B-Rang oder schlechter. "
-            "Das deutet eher auf Konsistenzprobleme (Miss-Kontrolle, Fokus ueber die volle "
-            "Map-Laenge) als auf ein reines Skill-Limit hin. Empfehlung: bekannte Maps erneut "
-            "spielen und gezielt auf FC/SS statt auf neue PP-Rekorde fokussieren.",
+            "Consistency issue despite high PP",
+            f"{low_rank_count} of {len(scores)} top scores are only B rank or worse. "
+            "This points more to consistency problems (miss control, focus over the full "
+            "map) than to a pure skill ceiling. Recommendation: replay known maps and aim "
+            "for FC/SS instead of chasing new PP records.",
         )
     return None
 
@@ -138,18 +138,18 @@ def rule_miss_pattern(scores: list[dict]) -> Finding | None:
 
     if high_sr_misses > low_sr_misses * 2 and high_sr_misses >= 3:
         return Finding(
-            "Misses haeufen sich bei hoeherer Sternebewertung",
-            "Deine Miss-Anzahl steigt bei schwierigeren Maps ueberproportional an. Das "
-            "spricht eher fuer ein Reading-/Stamina-Problem auf ungewohnten Patterns als "
-            "fuer reine Aim-Schwaeche. Empfehlung: langsameres, kontrolliertes Ueben neuer "
-            "Patterns vor dem Tempo-Fokus.",
+            "Misses pile up on higher star ratings",
+            "Your miss count rises disproportionately on harder maps. That suggests a "
+            "reading/stamina problem on unfamiliar patterns rather than a pure aim "
+            "weakness. Recommendation: slower, controlled practice of new patterns before "
+            "focusing on speed.",
         )
     if low_sr_misses >= 3 and high_sr_misses <= low_sr_misses:
         return Finding(
-            "Misses auch auf einfacheren Maps",
-            "Du hast auffaellig viele Misses auch auf Maps im unteren Sternebereich deiner "
-            "Top-Scores. Das deutet eher auf Konzentrations-/Konsistenzprobleme als auf "
-            "fehlendes Skill-Ceiling hin. Empfehlung: Fokus auf saubere Runs statt Tempo.",
+            "Misses even on easier maps",
+            "You have noticeably many misses even on maps in the lower star range of your "
+            "top scores. This points more to focus/consistency problems than a missing "
+            "skill ceiling. Recommendation: focus on clean runs instead of speed.",
         )
     return None
 
@@ -169,28 +169,27 @@ def rule_playtime_efficiency(stats: dict) -> Finding | None:
     pp_per_hour = pp / hours
     if pp_per_hour < 5:
         return Finding(
-            "Spielzeit steht nicht im Verhaeltnis zum PP-Fortschritt",
-            f"Bei ca. {hours:.0f} Spielstunden und {pp:.0f}pp liegt dein PP-Ertrag pro "
-            "Stunde vergleichsweise niedrig. Das spricht dafuer, gezielter statt laenger zu "
-            "ueben: einzelne schwache Bereiche (siehe andere Hinweise oben) fokussiert "
-            "trainieren statt breit zu grinden.",
+            "Playtime out of proportion to PP progress",
+            f"At about {hours:.0f} hours played and {pp:.0f}pp, your PP gain per hour is "
+            "comparatively low. That suggests practicing smarter rather than longer: train "
+            "specific weak areas (see the other tips above) in a focused way instead of "
+            "grinding broadly.",
         )
     return None
 
 
 PP_BRACKETS = [
-    (0, 500, "Fokussiere dich auf 2-3 Sterne Maps mit hoher Genauigkeit (>97%). "
-             "Baue zuerst ein solides Fundament in Timing und Basic-Aim auf, bevor du "
-             "die Sternebewertung steigerst."),
-    (500, 2000, "Erweitere gezielt auf 3-4 Sterne Maps und probiere HD auf bereits "
-                "bekannten Maps fuer zusaetzliche PP durch den Mod-Multiplikator."),
-    (2000, 5000, "Nutze DT/HR auf Maps, die du bereits ohne Mod gut spielst, um PP "
-                 "effizient zu steigern. Ziel: 4-5.5 Sterne Kernbereich."),
-    (5000, 10000, "Fokus auf Konsistenz in deinem aktuellen Sternebereich (S/SS statt "
-                  "neuer PP-Rekorde) plus gezieltes Ausbauen einzelner Schwaechen."),
-    (10000, float("inf"), "In diesem Bracket zaehlt Feintuning: gezielte Maps mit "
-                          "bekannten Schwaechen (siehe Hinweise oben) und Mod-Kombinationen "
-                          "fuer maximale PP-Effizienz pro Score."),
+    (0, 500, "Focus on 2-3 star maps with high accuracy (>97%). Build a solid foundation "
+             "in timing and basic aim first, before pushing star rating higher."),
+    (500, 2000, "Deliberately expand to 3-4 star maps and try HD on maps you already know "
+                "for extra PP from the mod multiplier."),
+    (2000, 5000, "Use DT/HR on maps you already play well nomod to raise PP efficiently. "
+                 "Target: a 4-5.5 star core range."),
+    (5000, 10000, "Focus on consistency in your current star range (S/SS instead of new "
+                  "PP records) plus deliberately shoring up individual weaknesses."),
+    (10000, float("inf"), "In this bracket fine-tuning matters: targeted maps for known "
+                          "weaknesses (see the tips above) and mod combinations for maximum "
+                          "PP efficiency per score."),
 ]
 
 
@@ -199,14 +198,14 @@ def rule_farming_strategy(stats: dict) -> Finding:
     for low, high, advice in PP_BRACKETS:
         if low <= pp < high:
             return Finding(
-                f"Naechste Schritte fuer dein aktuelles PP-Level (~{pp:.0f}pp)",
+                f"Next steps for your current PP level (~{pp:.0f}pp)",
                 advice,
             )
-    return Finding("Naechste Schritte", PP_BRACKETS[-1][2])
+    return Finding("Next steps", PP_BRACKETS[-1][2])
 
 
 def generate_report(stats: dict, scores: list[dict]) -> list[Finding]:
-    """Fuehrt alle Regeln aus und gibt die zutreffenden Findings zurueck."""
+    """Runs all rules and returns the applicable findings."""
     findings: list[Finding] = []
 
     # Jede Regel bekommt eine Kategorie, die in der GUI Symbol + Akzentfarbe bestimmt.

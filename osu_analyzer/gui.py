@@ -17,7 +17,7 @@ import requests
 from . import theme, updater
 from .config import APP_NAME, VERSION, ConfigError, get_last_username, set_last_username
 from .osu_api import OsuApiClient, OsuApiError
-from .rules_engine import generate_report
+from .rules_engine import Finding, generate_report
 
 try:
     from PIL import Image, ImageDraw
@@ -31,6 +31,34 @@ ctk.set_default_color_theme("blue")
 AVATAR_SIZE = 96
 CONTENT_WRAP = 600  # Textumbruch fuer volle Breite (z.B. Fehler-Karte)
 TIP_WRAP = 270      # Textumbruch in den zweispaltigen Tipp-Karten
+
+# Statisches Demo-Profil, das beim Start gezeigt wird (kein API-Call noetig).
+EXAMPLE_STATS = {
+    "username": "mrekk",
+    "country_code": "AU",
+    "statistics": {
+        "global_rank": 1,
+        "country_rank": 1,
+        "pp": 21500,
+        "hit_accuracy": 99.06,
+        "level": {"current": 105},
+        "play_time": 5_400_000,  # Sekunden (~1500 h)
+    },
+}
+EXAMPLE_FINDINGS = [
+    Finding("Accuracy drops on harder maps",
+            "Accuracy falls by about 1.8% as star rating increases – practice maps just "
+            "above the comfort zone.", "accuracy"),
+    Finding("Untapped PP potential from mods",
+            "HD/HR barely show up in the top scores – farming known maps with them is "
+            "comparatively easy PP.", "mods"),
+    Finding("Strong consistency",
+            "Almost all top scores are S or better – solid miss control across full maps.",
+            "consistency"),
+    Finding("Next steps for this PP level",
+            "Fine-tune with targeted maps for known weaknesses and smart mod combinations.",
+            "strategy"),
+]
 
 
 def _asset_path(filename: str) -> Path:
@@ -95,7 +123,7 @@ class PPCoachApp(ctk.CTk):
         self._update_info = None
         self._overlay = None
         self._build_layout()
-        self._show_empty_state()
+        self._show_example_profile()  # beim Start ein Beispiel-Profil zeigen
         self._check_updates_async()  # still im Hintergrund, stoert nie
 
     def _set_icon(self):
@@ -119,11 +147,11 @@ class PPCoachApp(ctk.CTk):
             text_color=theme.TEXT_PRIMARY,
         ).pack(side="left")
         ctk.CTkLabel(
-            topbar, text="  osu! Skill-Analyse", font=theme.font(13),
+            topbar, text="  osu! skill analysis", font=theme.font(13),
             text_color=theme.TEXT_MUTED,
         ).pack(side="left", pady=(10, 0))
         ctk.CTkLabel(
-            topbar, text="inoffiziell · nicht von osu! affiliiert",
+            topbar, text="unofficial · not affiliated with osu!",
             font=theme.font(11), text_color=theme.TEXT_MUTED,
         ).pack(side="right", pady=(10, 0))
 
@@ -140,29 +168,29 @@ class PPCoachApp(ctk.CTk):
         # Violett), die sich klar vom Rest abhebt.
         self.ai_banner = theme.GradientBanner(
             outer, on_click=self._show_ai_teaser,
-            text="AI Coach — dein persönlicher osu!-Coach",
-            height=76, badge="NEU", cta="Jetzt entdecken  ›",
+            text="AI Coach — your personal osu! coach",
+            height=76, badge="COMING SOON", cta="Discover  ›",
             colors=(theme.AI_GRADIENT_START, theme.AI_GRADIENT_END),
         )
         self.ai_banner.pack(fill="x", pady=(16, 16))
 
-        # Eingabe-Zeile
+        # Search row - compact (usernames are short), left-aligned
         input_frame = ctk.CTkFrame(outer, fg_color="transparent")
         input_frame.pack(fill="x")
 
         self.username_entry = ctk.CTkEntry(
-            input_frame, placeholder_text="osu! Nutzername eingeben …",
-            height=44, font=theme.font(14), corner_radius=theme.RADIUS_BUTTON,
+            input_frame, placeholder_text="Enter osu! username …",
+            width=280, height=44, font=theme.font(14),
+            corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.BG_INPUT, border_color=theme.BORDER, border_width=1,
         )
-        self.username_entry.pack(side="left", expand=True, fill="x", padx=(0, 10))
+        self.username_entry.pack(side="left", padx=(0, 10))
         self.username_entry.bind("<Return>", lambda _e: self._start_analysis())
-        last_username = get_last_username()
-        if last_username:
-            self.username_entry.insert(0, last_username)
+        # Prefill with the last used name, or "mrekk" as an example
+        self.username_entry.insert(0, get_last_username() or "mrekk")
 
         self.analyze_button = ctk.CTkButton(
-            input_frame, text="Analysieren", command=self._start_analysis,
+            input_frame, text="Analyze", command=self._start_analysis,
             height=44, width=140, font=theme.font(14, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
@@ -187,7 +215,7 @@ class PPCoachApp(ctk.CTk):
 
         # Footer: Version + manueller Update-Check (Launcher-Gefuehl).
         self.footer_label = ctk.CTkLabel(
-            outer, text=f"v{VERSION}  ·  nach Updates suchen", font=theme.font(11),
+            outer, text=f"v{VERSION}  ·  check for updates", font=theme.font(11),
             text_color=theme.TEXT_MUTED, cursor="hand2",
         )
         self.footer_label.pack(anchor="e", pady=(8, 0))
@@ -209,35 +237,62 @@ class PPCoachApp(ctk.CTk):
             card, text="🎯", font=theme.font(48),
         ).grid(row=0, column=0, pady=(30, 4))
         ctk.CTkLabel(
-            card, text="Bereit für deine Analyse", font=theme.font(20, "bold"),
+            card, text="Ready for your analysis", font=theme.font(20, "bold"),
             text_color=theme.TEXT_PRIMARY,
         ).grid(row=1, column=0)
         ctk.CTkLabel(
             card,
-            text="Gib oben deinen osu! Nutzernamen ein und klick auf „Analysieren“.\n"
-                 "Du bekommst deine Stats plus konkrete Tipps, wo du am meisten PP\n"
-                 "liegen lässt – Genauigkeit, Mods, Konsistenz und mehr.",
+            text="Enter your osu! username above and click “Analyze”.\n"
+                 "You'll get your stats plus concrete tips on where you're leaving\n"
+                 "the most PP on the table – accuracy, mods, consistency and more.",
             font=theme.font(13), text_color=theme.TEXT_MUTED, justify="center",
         ).grid(row=2, column=0, pady=(6, 12), padx=20)
         ctk.CTkLabel(
             card,
-            text="✨  Noch tiefere, auf dich zugeschnittene Analysen? "
-                 "Schau dir den AI Coach oben an.",
+            text="✨  Want even deeper, tailored analysis? "
+                 "Check out the AI Coach above.",
             font=theme.font(12, "bold"), text_color=theme.ACCENT,
             justify="center",
         ).grid(row=3, column=0, pady=(0, 30), padx=20)
 
+    def _show_example_profile(self):
+        """Zeigt beim Start ein statisches Demo-Profil (mrekk), damit man sofort
+        sieht, wie eine Analyse aussieht."""
+        self._render_results("mrekk", EXAMPLE_STATS, EXAMPLE_FINDINGS,
+                             avatar_image=None, flag_image=None, example=True)
+
     def _show_error(self, message: str):
         self._clear_content()
         theme.TipCard(
-            self.content, title="Etwas ist schiefgelaufen", body=message,
+            self.content, title="Something went wrong", body=message,
             accent=theme.DANGER, icon="⚠", wraplength=CONTENT_WRAP,
         ).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
-    def _render_results(self, username, stats, findings, avatar_image, flag_image=None):
+    def _render_results(self, username, stats, findings, avatar_image, flag_image=None,
+                        example=False):
         self._clear_content()
         statistics = stats.get("statistics", {})
         row = 0
+
+        # Beispiel-Modus: deutlich sichtbarer Hinweis, dass das nur ein Demo-Profil ist.
+        if example:
+            note = ctk.CTkFrame(self.content, fg_color=theme.BG_CARD,
+                                corner_radius=theme.RADIUS_CARD)
+            note.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(4, 12))
+            note.grid_columnconfigure(1, weight=1)
+            ctk.CTkLabel(
+                note, text="EXAMPLE", font=theme.font(11, "bold"),
+                text_color=theme.POSITIVE_TEXT, fg_color=theme.POSITIVE,
+                corner_radius=6, padx=8, pady=2,
+            ).grid(row=0, column=0, padx=(14, 10), pady=12)
+            ctk.CTkLabel(
+                note,
+                text="This is a sample profile. Enter your own osu! username above and "
+                     "click “Analyze”.",
+                font=theme.font(12), text_color=theme.TEXT_MUTED, anchor="w",
+                justify="left",
+            ).grid(row=0, column=1, sticky="w", padx=(0, 14), pady=12)
+            row += 1
 
         # --- Hero-Header (Avatar + Name + Rang) ---------------------------
         hero = ctk.CTkFrame(self.content, fg_color=theme.BG_CARD_ALT,
@@ -284,10 +339,10 @@ class PPCoachApp(ctk.CTk):
         # Werte bleiben neutral-hell -> ruhig und uebersichtlich.
         stats_data = [
             (theme.fmt_pp(statistics.get("pp")), "Performance", theme.ACCENT),
-            (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Genauigkeit",
+            (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Accuracy",
              theme.TEXT_PRIMARY),
             (str(level.get("current", "?")), "Level", theme.TEXT_PRIMARY),
-            (theme.fmt_hours(statistics.get("play_time")), "Spielzeit",
+            (theme.fmt_hours(statistics.get("play_time")), "Playtime",
              theme.TEXT_PRIMARY),
         ]
         for col, (value, label, accent) in enumerate(stats_data):
@@ -299,7 +354,7 @@ class PPCoachApp(ctk.CTk):
 
         # --- Tipp-Karten (zwei Spalten: links/rechts, kompakter) -----------
         ctk.CTkLabel(
-            self.content, text="DEINE TIPPS", font=theme.font(12, "bold"),
+            self.content, text="YOUR TIPS", font=theme.font(12, "bold"),
             text_color=theme.TEXT_MUTED, anchor="w",
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 8), padx=2)
         row += 1
@@ -335,11 +390,11 @@ class PPCoachApp(ctk.CTk):
     def _start_analysis(self):
         username = self.username_entry.get().strip()
         if not username:
-            self.status_label.configure(text="Bitte einen Nutzernamen eingeben.")
+            self.status_label.configure(text="Please enter a username.")
             return
 
         self.analyze_button.configure(state="disabled")
-        self.status_label.configure(text="Lade Daten von der osu! API …")
+        self.status_label.configure(text="Loading data from the osu! API …")
 
         thread = threading.Thread(target=self._run_analysis, args=(username,),
                                   daemon=True)
@@ -356,7 +411,7 @@ class PPCoachApp(ctk.CTk):
             self.after(0, self._on_error, str(exc))
             return
         except Exception as exc:  # unerwarteter Fehler soll die GUI nicht crashen
-            self.after(0, self._on_error, f"Unerwarteter Fehler: {exc}")
+            self.after(0, self._on_error, f"Unexpected error: {exc}")
             return
 
         self.after(0, self._on_success, username, stats, findings, avatar_image,
@@ -364,12 +419,12 @@ class PPCoachApp(ctk.CTk):
 
     def _on_success(self, username, stats, findings, avatar_image, flag_image):
         set_last_username(username)
-        self.status_label.configure(text="Analyse abgeschlossen ✓")
+        self.status_label.configure(text="Analysis complete ✓")
         self.analyze_button.configure(state="normal")
         self._render_results(username, stats, findings, avatar_image, flag_image)
 
     def _on_error(self, message: str):
-        self.status_label.configure(text="Fehler")
+        self.status_label.configure(text="Error")
         self.analyze_button.configure(state="normal")
         self._show_error(message)
 
@@ -385,17 +440,17 @@ class PPCoachApp(ctk.CTk):
             # Ein nicht erreichbarer Update-Server darf die App nie stoeren.
             if manual:
                 self.after(0, lambda: self.footer_label.configure(
-                    text=f"v{VERSION}  ·  Check nicht möglich  ·  erneut prüfen"))
+                    text=f"v{VERSION}  ·  check failed  ·  try again"))
             return
 
         if info:
             self.after(0, self._show_update_available, info)
         elif manual:
             self.after(0, lambda: self.footer_label.configure(
-                text=f"v{VERSION}  ·  neueste Version ✓  ·  erneut prüfen"))
+                text=f"v{VERSION}  ·  up to date ✓  ·  check again"))
 
     def _manual_check(self):
-        self.footer_label.configure(text=f"v{VERSION}  ·  suche nach Updates …")
+        self.footer_label.configure(text=f"v{VERSION}  ·  checking for updates …")
         self._check_updates_async(manual=True)
 
     def _show_update_available(self, info):
@@ -403,7 +458,7 @@ class PPCoachApp(ctk.CTk):
         self.update_button.configure(text=f"⬆  Update {info.version}")
         self.update_button.pack(side="right", padx=(0, 10), pady=(6, 0))
         self.footer_label.configure(
-            text=f"v{VERSION}  ·  Version {info.version} verfügbar")
+            text=f"v{VERSION}  ·  version {info.version} available")
 
     def _open_update_dialog(self):
         info = self._update_info
@@ -411,7 +466,7 @@ class PPCoachApp(ctk.CTk):
             return
 
         dialog = ctk.CTkToplevel(self)
-        dialog.title("Update verfügbar")
+        dialog.title("Update available")
         dialog.geometry("460x400")
         dialog.resizable(False, False)
         dialog.configure(fg_color=theme.BG_WINDOW)
@@ -419,7 +474,7 @@ class PPCoachApp(ctk.CTk):
 
         header = theme.GradientBanner(
             dialog, on_click=lambda: None,
-            text=f"⬆  Update {info.version} verfügbar", height=70,
+            text=f"⬆  Update {info.version} available", height=70,
         )
         header.configure(cursor="arrow")
         header.unbind("<Button-1>")
@@ -429,7 +484,7 @@ class PPCoachApp(ctk.CTk):
         body.pack(fill="both", expand=True, padx=24, pady=(16, 20))
 
         ctk.CTkLabel(
-            body, text=f"Du hast v{VERSION} – neu ist v{info.version}.",
+            body, text=f"You have v{VERSION} – v{info.version} is available.",
             font=theme.font(14, "bold"), text_color=theme.TEXT_PRIMARY,
         ).pack(anchor="w")
 
@@ -439,7 +494,7 @@ class PPCoachApp(ctk.CTk):
             wrap="word", height=150,
         )
         notes_box.pack(fill="both", expand=True, pady=(10, 12))
-        notes_box.insert("1.0", info.notes or "Keine Änderungshinweise angegeben.")
+        notes_box.insert("1.0", info.notes or "No changelog provided.")
         notes_box.configure(state="disabled")
 
         progress = ctk.CTkProgressBar(body, progress_color=theme.POSITIVE)
@@ -451,14 +506,14 @@ class PPCoachApp(ctk.CTk):
         button_row.pack(fill="x", pady=(4, 0))
 
         later_btn = ctk.CTkButton(
-            button_row, text="Später", command=dialog.destroy, height=40, width=110,
+            button_row, text="Later", command=dialog.destroy, height=40, width=110,
             corner_radius=theme.RADIUS_BUTTON, font=theme.font(13),
             fg_color=theme.BG_CARD, hover_color=theme.BG_CARD_ALT,
         )
         later_btn.pack(side="left")
 
         update_btn = ctk.CTkButton(
-            button_row, text="Jetzt aktualisieren", height=40,
+            button_row, text="Update now", height=40,
             corner_radius=theme.RADIUS_BUTTON, font=theme.font(13, "bold"),
             fg_color=theme.POSITIVE, hover_color=theme.POSITIVE_HOVER,
             text_color=theme.POSITIVE_TEXT,
@@ -469,14 +524,14 @@ class PPCoachApp(ctk.CTk):
             if not updater.is_frozen():
                 status.pack(anchor="w", pady=(10, 0))
                 status.configure(
-                    text="Im Entwicklermodus (python) wird nichts ersetzt – "
-                         "funktioniert nur in der gebauten .exe.")
+                    text="In developer mode (python) nothing is replaced – this only "
+                         "works in the built .exe.")
                 return
             update_btn.configure(state="disabled")
             later_btn.configure(state="disabled")
             progress.pack(fill="x", pady=(12, 4))
             status.pack(anchor="w")
-            status.configure(text="Lade Update herunter …")
+            status.configure(text="Downloading update …")
             threading.Thread(target=run_update, daemon=True).start()
 
         def run_update():
@@ -484,7 +539,7 @@ class PPCoachApp(ctk.CTk):
                 path = updater.download_update(
                     info, progress_cb=lambda f: self.after(0, progress.set, f))
                 self.after(0, lambda: status.configure(
-                    text="Installiere & starte neu …"))
+                    text="Installing & restarting …"))
                 updater.apply_update_and_restart(path)  # beendet den Prozess
             except Exception as exc:
                 self.after(0, self._update_failed, update_btn, later_btn, status, exc)
@@ -497,7 +552,7 @@ class PPCoachApp(ctk.CTk):
     def _update_failed(self, update_btn, later_btn, status, exc):
         update_btn.configure(state="normal")
         later_btn.configure(state="normal")
-        status.configure(text=f"Update fehlgeschlagen: {exc}")
+        status.configure(text=f"Update failed: {exc}")
 
     # -- AI-Info-Popup (In-App-Overlay, kein separates Fenster) -------------
     def _close_overlay(self):
@@ -536,28 +591,28 @@ class PPCoachApp(ctk.CTk):
         body.pack(fill="both", expand=True, padx=24, pady=(18, 20))
 
         ctk.CTkLabel(
-            body, text="Bald verfügbar – dein persönlicher Coach",
+            body, text="Coming soon – your personal coach",
             font=theme.font(16, "bold"), text_color=theme.TEXT_PRIMARY,
         ).pack(anchor="w")
         ctk.CTkLabel(
             body,
-            text="Das nächste Update hebt die Analyse auf ein neues Level:",
+            text="The next update takes the analysis to a whole new level:",
             font=theme.font(13), text_color=theme.TEXT_MUTED, justify="left",
         ).pack(anchor="w", pady=(4, 14))
 
         bullets = [
-            ("🎯", "Auf dich zugeschnitten",
-             "Analyse deines individuellen Spielstils statt allgemeiner Regeln."),
-            ("🔍", "Deutlich tiefer",
-             "Erkennt feine Muster in Aim, Reading & Timing, die Faustregeln übersehen."),
-            ("🗺", "Spezielle Map-Vorschläge",
-             "Handverlesene Maps, die genau deine Schwächen gezielt trainieren."),
+            ("🎯", "Tailored to you",
+             "Analyzes your individual playstyle instead of generic rules."),
+            ("🔍", "Much deeper",
+             "Spots subtle patterns in aim, reading & timing that rules of thumb miss."),
+            ("🗺", "Special map picks",
+             "Hand-picked maps that train exactly your weaknesses."),
         ]
         for icon, title, text in bullets:
             self._teaser_bullet(body, icon, title, text)
 
         ctk.CTkButton(
-            body, text="Alles klar", command=self._close_overlay,
+            body, text="Got it", command=self._close_overlay,
             height=40, font=theme.font(13, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,

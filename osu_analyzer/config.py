@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 
 APP_NAME = "PPCoach"
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 # --- Selbst-Update ---------------------------------------------------------
 # Die App liest ihr Update direkt aus der GitHub-Releases-API des Repos:
@@ -49,9 +49,8 @@ def get_app_credentials() -> tuple[str, str]:
         from . import _app_credentials  # gitignored, siehe _app_credentials.py.example
     except ImportError as exc:
         raise ConfigError(
-            "Keine osu! API-Zugangsdaten gefunden. Bitte osu_analyzer/_app_credentials.py "
-            "anlegen (Vorlage: osu_analyzer/_app_credentials.py.example kopieren und "
-            "ausfuellen)."
+            "No osu! API credentials found. Please create osu_analyzer/_app_credentials.py "
+            "(template: copy osu_analyzer/_app_credentials.py.example and fill it in)."
         ) from exc
 
     client_id = getattr(_app_credentials, "CLIENT_ID", None)
@@ -59,8 +58,8 @@ def get_app_credentials() -> tuple[str, str]:
 
     if not client_id or not client_secret:
         raise ConfigError(
-            "osu_analyzer/_app_credentials.py existiert, aber CLIENT_ID/CLIENT_SECRET "
-            "sind leer. Bitte mit echten Werten befuellen."
+            "osu_analyzer/_app_credentials.py exists, but CLIENT_ID/CLIENT_SECRET are "
+            "empty. Please fill them with real values."
         )
 
     return client_id, client_secret

@@ -103,11 +103,11 @@ def _lighten(rgb: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
     return tuple(round(c + (255 - c) * amount) for c in rgb)  # type: ignore[return-value]
 
 
-# --- Formatierungs-Helfer --------------------------------------------------
+# --- Formatting helpers ----------------------------------------------------
 def fmt_int(value) -> str:
-    """1234567 -> '1.234.567' (Punkt als Tausendertrenner, dt. Stil)."""
+    """1234567 -> '1,234,567' (comma thousands separator, English style)."""
     try:
-        return f"{int(value):,}".replace(",", ".")
+        return f"{int(value):,}"
     except (TypeError, ValueError):
         return "?"
 
@@ -118,14 +118,14 @@ def fmt_rank(value) -> str:
 
 def fmt_pp(value) -> str:
     try:
-        return f"{float(value):,.0f}".replace(",", ".") + "pp"
+        return f"{float(value):,.0f}" + "pp"
     except (TypeError, ValueError):
         return "?pp"
 
 
 def fmt_accuracy(value) -> str:
     try:
-        return f"{float(value):.2f}".replace(".", ",") + "%"
+        return f"{float(value):.2f}%"
     except (TypeError, ValueError):
         return "?"
 
@@ -147,8 +147,8 @@ class GradientBanner(tk.Canvas):
     eine bewusst auffaellige Werbefarbe tragen kann.
     """
 
-    def __init__(self, master, on_click, text="✨  AI Coach  –  bald verfügbar",
-                 height=64, colors=None, badge=None, cta="ℹ  Mehr erfahren  ›",
+    def __init__(self, master, on_click, text="✨  AI Coach  –  coming soon",
+                 height=64, colors=None, badge=None, cta="ℹ  Learn more  ›",
                  **kwargs):
         super().__init__(master, height=height, highlightthickness=0, bd=0,
                          bg=BG_WINDOW, **kwargs)

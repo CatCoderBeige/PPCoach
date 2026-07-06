@@ -25,22 +25,22 @@ def _request(method: str, url: str, **kwargs) -> requests.Response:
     try:
         response = requests.request(method, url, timeout=REQUEST_TIMEOUT, **kwargs)
     except requests.exceptions.Timeout as exc:
-        raise OsuApiError("Zeitueberschreitung bei der Verbindung zur osu! API.") from exc
+        raise OsuApiError("Connection to the osu! API timed out.") from exc
     except requests.exceptions.ConnectionError as exc:
         raise OsuApiError(
-            "Keine Verbindung zur osu! API moeglich. Bitte Internetverbindung pruefen."
+            "Could not connect to the osu! API. Please check your internet connection."
         ) from exc
     except requests.exceptions.RequestException as exc:
-        raise OsuApiError(f"Unerwarteter Netzwerkfehler: {exc}") from exc
+        raise OsuApiError(f"Unexpected network error: {exc}") from exc
 
     if response.status_code == 404:
-        raise UserNotFoundError("Dieser osu! Nutzername/ID wurde nicht gefunden.")
+        raise UserNotFoundError("This osu! username/ID was not found.")
     if response.status_code == 429:
-        raise RateLimitError("Rate-Limit der osu! API erreicht. Bitte kurz warten und erneut versuchen.")
+        raise RateLimitError("osu! API rate limit reached. Please wait a moment and try again.")
     if response.status_code == 401:
-        raise OsuApiError("Authentifizierung bei der osu! API fehlgeschlagen (ungueltige App-Zugangsdaten).")
+        raise OsuApiError("Authentication with the osu! API failed (invalid app credentials).")
     if not response.ok:
-        raise OsuApiError(f"osu! API Fehler (Status {response.status_code}).")
+        raise OsuApiError(f"osu! API error (status {response.status_code}).")
 
     return response
 
@@ -68,7 +68,7 @@ class OsuApiClient:
         try:
             token = response.json()["access_token"]
         except (ValueError, KeyError) as exc:
-            raise OsuApiError("Unerwartete Antwort beim Login bei der osu! API.") from exc
+            raise OsuApiError("Unexpected response while logging in to the osu! API.") from exc
 
         self._token = token
         return token
@@ -86,7 +86,7 @@ class OsuApiClient:
         try:
             return response.json()
         except ValueError as exc:
-            raise OsuApiError("Antwort der osu! API konnte nicht gelesen werden.") from exc
+            raise OsuApiError("Could not read the osu! API response.") from exc
 
     def get_top_scores(self, user_id: int, limit: int = 10) -> list[dict]:
         # /scores/best akzeptiert nur die numerische User-ID, keinen Nutzernamen
@@ -100,4 +100,4 @@ class OsuApiClient:
         try:
             return response.json()
         except ValueError as exc:
-            raise OsuApiError("Antwort der osu! API konnte nicht gelesen werden.") from exc
+            raise OsuApiError("Could not read the osu! API response.") from exc
