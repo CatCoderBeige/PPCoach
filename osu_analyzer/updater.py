@@ -36,6 +36,10 @@ _CREATE_NEW_PROCESS_GROUP = 0x00000200
 _UPDATE_EXE_NAME = "PPCoach_update.exe"
 _LOG_NAME = "ppcoach_update.log"
 
+# Schutz gegen doppeltes Anwenden im selben Prozess (z.B. schneller Doppelklick):
+# sobald ein Update laeuft, ignorieren weitere Aufrufe.
+_apply_started = False
+
 
 def _log(msg: str) -> None:
     """Schreibt eine Diagnosezeile nach %TEMP%\\ppcoach_update.log (Fehler ignoriert)."""
@@ -49,20 +53,39 @@ def _log(msg: str) -> None:
 
 
 def cleanup_old() -> None:
-    """Loescht die beim letzten Update zur Seite gelegte ``PPCoach.exe.old``.
+    """Loescht die beim letzten Update zur Seite gelegte ``PPCoach.exe.old`` sowie
+    Reste alter Update-Ansaetze (Temp-Exe, veraltete Batch-Datei).
 
-    Beim Start aufrufen. Falls die Datei noch gesperrt ist (Vorgaenger-Prozess noch
+    Beim Start aufrufen. Falls eine Datei noch gesperrt ist (Vorgaenger-Prozess noch
     nicht ganz beendet), wird sie beim naechsten Start erneut versucht.
     """
     if not is_frozen():
         return
-    old = sys.executable + ".old"
-    if os.path.exists(old):
-        try:
-            os.remove(old)
-            _log(f"cleanup_old: removed {old}")
-        except OSError:
-            pass
+    leftovers = [
+        sys.executable + ".old",
+        os.path.join(tempfile.gettempdir(), _UPDATE_EXE_NAME),
+        os.path.join(tempfile.gettempdir(), "ppcoach_update.bat"),  # alter Ansatz
+    ]
+    for path in leftovers:
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+                _log(f"cleanup_old: removed {path}")
+            except OSError:
+                pass
+
+
+def _strip_mark_of_the_web(path: str) -> None:
+    """Entfernt die 'Mark of the Web' (NTFS-Datenstrom ``:Zone.Identifier``) von
+    ``path``. Ohne diese Markierung stuft Windows die frisch eingespielte Exe nicht
+    als 'aus dem Internet' ein - so erscheint beim automatischen Neustart keine
+    SmartScreen-/Sicherheitswarnung. Fehler (kein NTFS, nicht vorhanden) sind egal.
+    """
+    try:
+        os.remove(path + ":Zone.Identifier")
+        _log("strip_motw: removed Zone.Identifier")
+    except OSError:
+        pass
 
 
 @dataclass
@@ -186,6 +209,13 @@ def replace_executable(current: str, new_exe: str) -> str:
     """
     old = current + ".old"
 
+    # Idempotent: fehlt die Quelldatei, wurde die neue Exe bereits eingespielt
+    # (z.B. durch eine zweite Instanz oder einen doppelten Klick). Dann gibt es
+    # nichts mehr zu tun - kein Rollback, keine Fehlermeldung, App startet normal neu.
+    if not os.path.exists(new_exe):
+        _log("replace: new_exe missing -> already applied, nothing to do")
+        return old
+
     if os.path.exists(old):
         try:
             os.remove(old)
@@ -224,6 +254,12 @@ def apply_update_and_restart(new_exe: str) -> None:
     Beendet den aktuellen Prozess bei Erfolg (``os._exit``). Die zurueckgelassene
     ``.old`` raeumt der neu gestartete Prozess beim Start via ``cleanup_old()`` auf.
     """
+    global _apply_started
+    if _apply_started:
+        _log("apply: already in progress in this process, ignoring second call")
+        return
+    _apply_started = True
+
     if not is_frozen():
         raise RuntimeError(
             "Self-update only works in the built .exe, not in Python dev mode."
@@ -232,6 +268,9 @@ def apply_update_and_restart(new_exe: str) -> None:
     current = sys.executable
     _log(f"apply: current={current}  new={new_exe}")
     replace_executable(current, new_exe)
+    # Frisch eingespielte Exe nicht als 'aus dem Internet' markiert lassen -> sonst
+    # koennte Windows beim Neustart eine SmartScreen-Warnung zeigen.
+    _strip_mark_of_the_web(current)
 
     try:
         subprocess.Popen(
