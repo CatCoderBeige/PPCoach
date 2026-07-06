@@ -1,5 +1,5 @@
-# PyInstaller spec zum Bauen einer eigenstaendigen Windows-.exe.
-# Build mit: pyinstaller PPCoach.spec
+# PyInstaller spec for building a standalone Windows .exe.
+# Build with: pyinstaller PPCoach.spec
 
 a = Analysis(
     ["main.py"],

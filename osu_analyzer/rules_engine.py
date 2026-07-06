@@ -1,8 +1,8 @@
-"""Regelbasierte Spielanalyse - ersetzt den fruehreren Live-Call an Claude.
+"""Rule-based play analysis - replaces the earlier live call to Claude.
 
-Nimmt Profil-Stats + Top-Scores von der osu! API entgegen und leitet daraus,
-rein ueber Schwellenwerte/Formeln, Schwaechen und Empfehlungen ab. Jede Regel
-ist unabhaengig testbar und liefert 0..1 Findings.
+Takes profile stats + top scores from the osu! API and derives weaknesses and
+recommendations from them, purely via thresholds/formulas. Each rule is
+independently testable and returns 0..1 findings.
 """
 
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 class Finding:
     title: str
     text: str
-    category: str = "general"  # steuert Symbol + Farbe in der GUI (siehe theme.py)
+    category: str = "general"  # controls icon + color in the GUI (see theme.py)
 
 
 def _mod_acronyms(score: dict) -> set[str]:
@@ -208,7 +208,7 @@ def generate_report(stats: dict, scores: list[dict]) -> list[Finding]:
     """Runs all rules and returns the applicable findings."""
     findings: list[Finding] = []
 
-    # Jede Regel bekommt eine Kategorie, die in der GUI Symbol + Akzentfarbe bestimmt.
+    # Each rule gets a category that determines its icon + accent color in the GUI.
     rules = (
         ("accuracy", lambda: rule_accuracy_vs_star_rating(scores)),
         ("mods", lambda: rule_mod_usage(scores)),

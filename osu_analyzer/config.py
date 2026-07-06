@@ -1,14 +1,14 @@
-"""Konfigurationsverwaltung: App-Zugangsdaten und gespeicherte Nutzereinstellungen.
+"""Configuration management: app credentials and stored user settings.
 
-Die osu! Client-ID/Secret gehoeren zur App (von dir als Entwickler registriert bei
-https://osu.ppy.sh/home/account/edit#new-oauth-application), nicht zum einzelnen
-Kunden. Kunden geben nur ihren osu! Nutzernamen ein - sonst nichts.
+The osu! client ID/secret belong to the app (registered by you as the developer at
+https://osu.ppy.sh/home/account/edit#new-oauth-application), not to the individual
+customer. Customers only enter their osu! username - nothing else.
 
-Damit die Zugangsdaten trotzdem nie im (oeffentlichen) Quellcode landen, liegen sie
-in genau einer Datei: `_app_credentials.py` (siehe `_app_credentials.py.example` als
-Vorlage). Diese Datei ist gitignored, wird aber als normales Python-Modul von
-PyInstaller automatisch mit in die gebaute .exe eingepackt - der Kunde bekommt sie
-eingebacken, ohne sie je zu sehen oder selbst konfigurieren zu muessen.
+To make sure the credentials still never end up in the (public) source code, they
+live in exactly one file: `_app_credentials.py` (see `_app_credentials.py.example`
+as a template). This file is gitignored, but is bundled into the built .exe
+automatically by PyInstaller as a normal Python module - the customer gets it baked
+in without ever seeing or having to configure it.
 """
 
 import json
@@ -18,35 +18,35 @@ from pathlib import Path
 APP_NAME = "PPCoach"
 VERSION = "1.0.6"
 
-# --- Selbst-Update ---------------------------------------------------------
-# Die App liest ihr Update direkt aus der GitHub-Releases-API des Repos:
-# das jeweils NEUESTE Release liefert tag_name (= Version), body (= Changelog)
-# und das .exe-Asset (= Download). Anders als eine statische latest.json wird die
-# API nicht aggressiv vom CDN gecacht - so wird ein neues Release zuverlaessig und
-# sofort erkannt (kein "immer keins verfuegbar" mehr).
+# --- Self-update -----------------------------------------------------------
+# The app reads its update straight from the repo's GitHub Releases API:
+# the LATEST release provides tag_name (= version), body (= changelog) and the
+# .exe asset (= download). Unlike a static latest.json, the API isn't aggressively
+# cached by the CDN - so a new release is detected reliably and immediately
+# (no more "always nothing available").
 #
-# Beim Start (und bei jedem manuellen Klick) wird geprueft; ist eine neuere Version
-# da, kann die App sich selbst herunterladen, austauschen und neu starten (updater.py).
+# It's checked on startup (and on every manual click); if a newer version is
+# available, the app can download, replace and restart itself (updater.py).
 #
-# Solange dies leer ("") ist, bleibt die Update-Pruefung still deaktiviert.
+# As long as this is empty (""), the update check stays silently disabled.
 UPDATE_API_URL = "https://api.github.com/repos/CatCoderBeige/PPCoach/releases/latest"
 
-# Speicherort fuer persistierte Nutzereinstellungen (z.B. zuletzt genutzter Username)
+# Location for persisted user settings (e.g. most recently used username)
 SETTINGS_DIR = Path(os.getenv("APPDATA", Path.home())) / APP_NAME
 SETTINGS_FILE = SETTINGS_DIR / "settings.json"
 
 
 class ConfigError(Exception):
-    """Wird geworfen, wenn App-Zugangsdaten fehlen oder ungueltig sind."""
+    """Raised when app credentials are missing or invalid."""
 
 
 def get_app_credentials() -> tuple[str, str]:
-    """Liefert (client_id, client_secret) fuer die osu! API aus _app_credentials.py.
+    """Returns (client_id, client_secret) for the osu! API from _app_credentials.py.
 
-    Wirft ConfigError mit einer verstaendlichen Meldung, falls die Datei fehlt.
+    Raises ConfigError with a clear message if the file is missing.
     """
     try:
-        from . import _app_credentials  # gitignored, siehe _app_credentials.py.example
+        from . import _app_credentials  # gitignored, see _app_credentials.py.example
     except ImportError as exc:
         raise ConfigError(
             "No osu! API credentials found. Please create osu_analyzer/_app_credentials.py "

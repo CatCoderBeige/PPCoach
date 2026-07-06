@@ -1,8 +1,8 @@
-"""Desktop-GUI (CustomTkinter) fuer PPCoach.
+"""Desktop GUI (CustomTkinter) for PPCoach.
 
-Lila-dominantes, dunkles Design mit osu!-Pink als Akzent. Ergebnisse werden als
-einzelne Karten in einem scrollbaren Bereich dargestellt (Profil-Header mit
-Avatar + Stat-Karten + Tipp-Karten) statt in einer einzelnen Text-Box.
+Dark, minimalist design with osu! pink as the single accent color. Results are
+shown as individual cards in a scrollable area (profile header with avatar + stat
+cards + tip cards) instead of a single text box.
 """
 
 import io
@@ -24,7 +24,7 @@ from .rules_engine import Finding, generate_report
 
 try:
     from PIL import Image, ImageDraw
-except ImportError:  # Pillow ist optional; ohne wird nur der Avatar-Fallback genutzt
+except ImportError:  # Pillow is optional; without it only the avatar fallback is used
     Image = None
     ImageDraw = None
 
@@ -32,12 +32,12 @@ ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 AVATAR_SIZE = 96
-CONTENT_WRAP = 600  # Textumbruch fuer volle Breite (z.B. Fehler-Karte)
-TIP_WRAP = 270      # Textumbruch in den zweispaltigen Tipp-Karten
+CONTENT_WRAP = 600  # text wrap for full width (e.g. error card)
+TIP_WRAP = 270      # text wrap in the two-column tip cards
 
-# Statisches Demo-Profil, das beim Start als greyed-out Vorschau gezeigt wird
-# (kein API-Call, bewusst KEINE echten Werte - nur Platzhalter, damit klar ist,
-# dass hier noch nichts analysiert wurde).
+# Static demo profile shown as a greyed-out preview on startup (no API call,
+# deliberately NO real values - only placeholders, so it's clear nothing has been
+# analyzed yet).
 EXAMPLE_STATS = {
     "username": "Example Player",
     "country_code": "",
@@ -59,17 +59,17 @@ EXAMPLE_FINDINGS = [
 
 
 def _asset_path(filename: str) -> Path:
-    """Findet Asset-Dateien sowohl im Dev-Modus als auch in der gebauten .exe
-    (PyInstaller entpackt Datas nach sys._MEIPASS zur Laufzeit)."""
+    """Finds asset files both in dev mode and in the built .exe
+    (PyInstaller unpacks datas to sys._MEIPASS at runtime)."""
     base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
     return base / "assets" / filename
 
 
 def _load_round_avatar(url: str):
-    """Laedt das Avatar-Bild und maskiert es rund. Liefert ein CTkImage oder None.
+    """Loads the avatar image and masks it into a circle. Returns a CTkImage or None.
 
-    Bewusst tolerant: jeder Fehler (Netzwerk, fehlendes Pillow, kaputtes Bild)
-    fuehrt zu None, damit die Analyse nie an einem Avatar scheitert.
+    Deliberately tolerant: any error (network, missing Pillow, corrupt image)
+    results in None, so the analysis never fails because of an avatar.
     """
     if not url or Image is None:
         return None
@@ -90,7 +90,7 @@ def _load_round_avatar(url: str):
 
 
 def _load_flag(country_code: str):
-    """Laedt die Laenderflagge (flagcdn) als kleines CTkImage. Tolerant -> None bei Fehler."""
+    """Loads the country flag (flagcdn) as a small CTkImage. Tolerant -> None on error."""
     if not country_code or Image is None:
         return None
     try:
@@ -108,8 +108,8 @@ def _load_flag(country_code: str):
 
 
 def _set_app_user_model_id(appid: str = "CatCoderBeige.PPCoach") -> None:
-    """Meldet uns bei Windows als eigenstaendige App an (eigenes Taskleisten-Icon,
-    saubere Gruppierung). Fehler werden ignoriert (z.B. auf Nicht-Windows)."""
+    """Registers us with Windows as a standalone app (own taskbar icon, clean
+    grouping). Errors are ignored (e.g. on non-Windows)."""
     try:
         import ctypes
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
@@ -118,9 +118,9 @@ def _set_app_user_model_id(appid: str = "CatCoderBeige.PPCoach") -> None:
 
 
 def _ensure_desktop_shortcut() -> None:
-    """Legt beim ersten Start (nur in der gebauten .exe) eine Desktop-Verknuepfung
-    mit App-Icon an und merkt sich das in den Settings - ein spaeter vom Nutzer
-    geloeschtes Icon wird also nicht ungefragt neu erstellt."""
+    """Creates a desktop shortcut with the app icon on first start (only in the
+    built .exe) and remembers this in the settings - so an icon the user later
+    deletes is not recreated unasked."""
     if not updater.is_frozen():
         return
     try:
@@ -151,7 +151,7 @@ def _ensure_desktop_shortcut() -> None:
 
 class PPCoachApp(ctk.CTk):
     def __init__(self):
-        _set_app_user_model_id()  # als eigene App in der Taskleiste fuehren
+        _set_app_user_model_id()  # appear as our own app in the taskbar
         super().__init__()
         self.title(f"{APP_NAME} v{VERSION}")
         self.geometry("800x780")
@@ -159,20 +159,20 @@ class PPCoachApp(ctk.CTk):
         self.configure(fg_color=theme.BG_WINDOW)
         self._set_icon()
 
-        updater.cleanup_old()      # Reste eines vorherigen Updates entfernen
-        _ensure_desktop_shortcut()  # einmalig Desktop-Verknuepfung mit Icon anlegen
+        updater.cleanup_old()      # remove leftovers from a previous update
+        _ensure_desktop_shortcut()  # create the desktop shortcut with icon once
 
         self._client = OsuApiClient()
         self._update_info = None
         self._overlay = None
         self._scrim_bg = None
         self._build_layout()
-        self._show_example_profile()  # beim Start ein Beispiel-Profil zeigen
-        self._check_updates_async()  # still im Hintergrund, stoert nie
+        self._show_example_profile()  # show an example profile on startup
+        self._check_updates_async()  # quietly in the background, never intrusive
 
-        # Titelleiste an das App-Design angleichen (dunkel, gleiche Farbe wie das
-        # Fenster) statt der hellen System-Standardleiste. Direkt + nochmal knapp
-        # verzoegert, da manche Windows-Builds erst nach dem ersten Paint neu zeichnen.
+        # Match the title bar to the app design (dark, same color as the window)
+        # instead of the light system default bar. Immediately + once slightly
+        # delayed, since some Windows builds only repaint after the first paint.
         self._style_titlebar()
         self.after(60, self._style_titlebar)
 
@@ -185,10 +185,10 @@ class PPCoachApp(ctk.CTk):
                 pass
 
     def _style_titlebar(self):
-        """Faerbt Titelleiste, Fensterrahmen und Titeltext passend zum App-Design.
+        """Colors the title bar, window border and title text to match the app design.
 
-        Nutzt die DWM-API (Windows 11, Build 22000+). Auf aelteren Systemen oder
-        Nicht-Windows schlaegt es still fehl und die Standardleiste bleibt.
+        Uses the DWM API (Windows 11, build 22000+). On older systems or non-Windows
+        it fails silently and the default bar stays.
         """
         if sys.platform != "win32":
             return
@@ -205,21 +205,21 @@ class PPCoachApp(ctk.CTk):
             def _colorref(hex_color: str) -> int:
                 h = hex_color.lstrip("#")
                 r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-                return (b << 16) | (g << 8) | r  # COLORREF ist 0x00BBGGRR
+                return (b << 16) | (g << 8) | r  # COLORREF is 0x00BBGGRR
 
-            _set(20, 1)                              # dunkler Modus (Icons/Buttons hell)
-            _set(35, _colorref(theme.BG_WINDOW))     # Titelleisten-Hintergrund
-            _set(34, _colorref(theme.BORDER))        # Fensterrahmen
-            _set(36, _colorref(theme.TEXT_PRIMARY))  # Titeltext
+            _set(20, 1)                              # dark mode (light icons/buttons)
+            _set(35, _colorref(theme.BG_WINDOW))     # title bar background
+            _set(34, _colorref(theme.BORDER))        # window border
+            _set(36, _colorref(theme.TEXT_PRIMARY))  # title text
         except Exception:
             pass
 
-    # -- Aufbau -------------------------------------------------------------
+    # -- Layout -------------------------------------------------------------
     def _build_layout(self):
         outer = ctk.CTkFrame(self, fg_color="transparent")
         outer.pack(fill="both", expand=True, padx=22, pady=20)
 
-        # Topbar: Titel + dezenter Hinweis
+        # Topbar: title + subtle hint
         topbar = ctk.CTkFrame(outer, fg_color="transparent")
         topbar.pack(fill="x")
         ctk.CTkLabel(
@@ -231,7 +231,7 @@ class PPCoachApp(ctk.CTk):
             text_color=theme.TEXT_MUTED,
         ).pack(side="left", pady=(10, 0))
 
-        # Update-Check jetzt OBEN rechts (Launcher-Gefuehl): Version + manueller Check.
+        # Update check now at the TOP right (launcher feel): version + manual check.
         self.footer_label = ctk.CTkLabel(
             topbar, text=f"v{VERSION}  ·  check for updates", font=theme.font(11),
             text_color=theme.TEXT_MUTED, cursor="hand2",
@@ -239,7 +239,7 @@ class PPCoachApp(ctk.CTk):
         self.footer_label.pack(side="right", pady=(10, 0))
         self.footer_label.bind("<Button-1>", lambda _e: self._manual_check())
 
-        # Update-Button: erst sichtbar, wenn eine neue Version gefunden wurde.
+        # Update button: only visible once a new version has been found.
         self.update_button = ctk.CTkButton(
             topbar, text="⬆  Update", command=self._open_update_dialog,
             height=30, width=110, font=theme.font(12, "bold"),
@@ -248,8 +248,8 @@ class PPCoachApp(ctk.CTk):
             text_color=theme.POSITIVE_TEXT,
         )
 
-        # AI-Banner (Werbung + Info-Popup) - bewusst auffaellige Ad-Farbe (Cyan->
-        # Violett), die sich klar vom Rest abhebt.
+        # AI banner (promo + info popup) - deliberately loud ad color (cyan ->
+        # violet) that clearly stands out from the rest.
         self.ai_banner = theme.GradientBanner(
             outer, on_click=self._show_ai_teaser,
             text="AI Coach — your personal osu! coach",
@@ -264,7 +264,7 @@ class PPCoachApp(ctk.CTk):
         input_frame.pack(fill="x")
 
         search_wrap = ctk.CTkFrame(input_frame, fg_color="transparent")
-        search_wrap.pack()  # kein fill -> horizontal zentriert
+        search_wrap.pack()  # no fill -> horizontally centered
 
         self.username_entry = ctk.CTkEntry(
             search_wrap, placeholder_text="🔍   Enter your osu! username …",
@@ -274,7 +274,7 @@ class PPCoachApp(ctk.CTk):
         )
         self.username_entry.pack(side="left", padx=(0, 10))
         self.username_entry.bind("<Return>", lambda _e: self._start_analysis())
-        # Bewusst KEIN Prefill: das Feld startet leer (nur Placeholder).
+        # Deliberately NO prefill: the field starts empty (placeholder only).
 
         self.analyze_button = ctk.CTkButton(
             search_wrap, text="Analyze", command=self._start_analysis,
@@ -285,29 +285,29 @@ class PPCoachApp(ctk.CTk):
         )
         self.analyze_button.pack(side="left")
 
-        # Status-Zeile (zentriert unter der Suchleiste)
+        # Status line (centered under the search bar)
         self.status_label = ctk.CTkLabel(
             outer, text="", font=theme.font(12), text_color=theme.TEXT_MUTED,
         )
         self.status_label.pack(pady=(12, 6))
 
-        # Scrollbarer Content-Bereich (Empty-State bzw. Ergebnis-Karten)
+        # Scrollable content area (empty state or result cards)
         self.content = ctk.CTkScrollableFrame(
             outer, fg_color="transparent",
         )
         self.content.pack(fill="both", expand=True)
-        # Zwei gleich breite Spalten: Tipps liegen links/rechts, Header spannen beide.
+        # Two equal-width columns: tips sit left/right, headers span both.
         self.content.grid_columnconfigure(0, weight=1, uniform="col")
         self.content.grid_columnconfigure(1, weight=1, uniform="col")
 
-        # Footer: dezenter rechtlicher Hinweis (jetzt unten statt oben).
+        # Footer: subtle legal disclaimer (now at the bottom instead of the top).
         self.disclaimer_label = ctk.CTkLabel(
             outer, text="unofficial · not affiliated with osu!",
             font=theme.font(11), text_color=theme.TEXT_MUTED,
         )
         self.disclaimer_label.pack(anchor="e", pady=(8, 0))
 
-    # -- Content-Zustaende --------------------------------------------------
+    # -- Content states -----------------------------------------------------
     def _clear_content(self):
         for child in self.content.winfo_children():
             child.destroy()
@@ -342,9 +342,9 @@ class PPCoachApp(ctk.CTk):
         ).grid(row=3, column=0, pady=(0, 30), padx=20)
 
     def _show_example_profile(self):
-        """Zeigt beim Start eine bewusst simple, ausgegraute Vorschau (Platzhalter
-        statt echter Werte), damit man den Aufbau einer Analyse sieht - ohne dass
-        es wie echte Daten wirkt."""
+        """Shows a deliberately simple, greyed-out preview on startup (placeholders
+        instead of real values), so you can see the layout of an analysis - without
+        it looking like real data."""
         self._render_results("Example Player", EXAMPLE_STATS, EXAMPLE_FINDINGS,
                              avatar_image=None, flag_image=None, example=True)
 
@@ -361,12 +361,12 @@ class PPCoachApp(ctk.CTk):
         statistics = stats.get("statistics", {})
         row = 0
 
-        # Im Beispiel-Modus ist alles gedaempft: gedaempfte Farben signalisieren,
-        # dass es sich um Platzhalter und nicht um echte Werte handelt.
+        # In example mode everything is muted: muted colors signal that these are
+        # placeholders and not real values.
         primary = theme.TEXT_MUTED if example else theme.TEXT_PRIMARY
         accent = theme.TEXT_MUTED if example else theme.ACCENT
 
-        # Beispiel-Modus: deutlich sichtbarer Hinweis, dass das nur eine Vorschau ist.
+        # Example mode: clearly visible hint that this is only a preview.
         if example:
             note = ctk.CTkFrame(self.content, fg_color=theme.BG_CARD,
                                 corner_radius=theme.RADIUS_CARD)
@@ -386,7 +386,7 @@ class PPCoachApp(ctk.CTk):
             ).grid(row=0, column=1, sticky="w", padx=(0, 14), pady=12)
             row += 1
 
-        # --- Hero-Header (Avatar + Name + Rang) ---------------------------
+        # --- Hero header (avatar + name + rank) ---------------------------
         hero = ctk.CTkFrame(self.content, fg_color=theme.BG_CARD_ALT,
                             corner_radius=theme.RADIUS_CARD)
         hero.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(4, 12))
@@ -415,7 +415,7 @@ class PPCoachApp(ctk.CTk):
                 ctk.CTkLabel(rankrow, text="", image=flag_image).pack(
                     side="left", padx=(14, 5))
             else:
-                # Fallback ohne Bild: nur der Laendercode
+                # Fallback without an image: just the country code
                 ctk.CTkLabel(rankrow, text="  ·  ", font=theme.font(13),
                              text_color=theme.TEXT_MUTED).pack(side="left")
             ctk.CTkLabel(
@@ -425,12 +425,12 @@ class PPCoachApp(ctk.CTk):
             ).pack(side="left")
         row += 1
 
-        # --- Stat-Karten ---------------------------------------------------
+        # --- Stat cards ----------------------------------------------------
         level = statistics.get("level", {}) or {}
         stat_row = ctk.CTkFrame(self.content, fg_color="transparent")
         stat_row.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, 12))
         if example:
-            # Platzhalter (keine echten Werte), alles gedaempft.
+            # Placeholders (no real values), all muted.
             stats_data = [
                 ("—", "Performance", accent),
                 ("—", "Accuracy", primary),
@@ -438,8 +438,8 @@ class PPCoachApp(ctk.CTk):
                 ("—", "Playtime", primary),
             ]
         else:
-            # Nur der Kern-Wert (PP) traegt die Markenfarbe als Fokuspunkt; die
-            # uebrigen Werte bleiben neutral-hell -> ruhig und uebersichtlich.
+            # Only the core value (PP) carries the brand color as a focal point;
+            # the other values stay neutral-light -> calm and easy to scan.
             stats_data = [
                 (theme.fmt_pp(statistics.get("pp")), "Performance", theme.ACCENT),
                 (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Accuracy",
@@ -455,7 +455,7 @@ class PPCoachApp(ctk.CTk):
             card.grid(row=0, column=col, sticky="ew", padx=padx)
         row += 1
 
-        # --- Tipp-Karten (zwei Spalten: links/rechts, kompakter) -----------
+        # --- Tip cards (two columns: left/right, more compact) -------------
         ctk.CTkLabel(
             self.content, text="YOUR TIPS", font=theme.font(12, "bold"),
             text_color=theme.TEXT_MUTED, anchor="w",
@@ -465,7 +465,7 @@ class PPCoachApp(ctk.CTk):
         for idx, finding in enumerate(findings):
             icon, cat_accent = theme.category_style(finding.category)
             if example:
-                cat_accent = theme.TEXT_MUTED  # gedaempft, da nur Vorschau
+                cat_accent = theme.TEXT_MUTED  # muted, since it's only a preview
             col = idx % 2
             padx = (0, 6) if col == 0 else (6, 0)
             theme.TipCard(
@@ -475,9 +475,9 @@ class PPCoachApp(ctk.CTk):
                    pady=(0, 12))
 
     def _build_avatar(self, master, username, avatar_image, muted=False):
-        """Setzt links im Hero das runde Avatar-Bild, oder einen Fallback:
-        im Normalfall ein Kreis mit der Initiale, im (ausgegrauten) Beispiel-Modus
-        eine neutrale, gedaempfte Platzhalter-Silhouette."""
+        """Places the round avatar image on the left of the hero, or a fallback:
+        normally a circle with the initial, in (greyed-out) example mode a neutral,
+        muted placeholder silhouette."""
         if avatar_image is not None:
             ctk.CTkLabel(master, text="", image=avatar_image).grid(
                 row=0, column=0, padx=(18, 8), pady=18)
@@ -489,7 +489,7 @@ class PPCoachApp(ctk.CTk):
         canvas.grid(row=0, column=0, padx=(18, 8), pady=18)
 
         if muted:
-            # Neutraler Platzhalter (kein echtes Profil): gedaempfte Silhouette.
+            # Neutral placeholder (no real profile): muted silhouette.
             canvas.create_oval(2, 2, size - 2, size - 2, fill=theme.BG_CARD,
                                outline=theme.BORDER, width=2)
             canvas.create_oval(size * 0.34, size * 0.24, size * 0.66, size * 0.56,
@@ -503,7 +503,7 @@ class PPCoachApp(ctk.CTk):
         canvas.create_text(size / 2, size / 2, text=initial,
                            font=(theme.FONT_FAMILY, 40, "bold"), fill="white")
 
-    # -- Ablauf -------------------------------------------------------------
+    # -- Flow ---------------------------------------------------------------
     def _start_analysis(self):
         username = self.username_entry.get().strip()
         if not username:
@@ -527,7 +527,7 @@ class PPCoachApp(ctk.CTk):
         except (OsuApiError, ConfigError) as exc:
             self.after(0, self._on_error, str(exc))
             return
-        except Exception as exc:  # unerwarteter Fehler soll die GUI nicht crashen
+        except Exception as exc:  # an unexpected error must not crash the GUI
             self.after(0, self._on_error, f"Unexpected error: {exc}")
             return
 
@@ -545,7 +545,7 @@ class PPCoachApp(ctk.CTk):
         self.analyze_button.configure(state="normal")
         self._show_error(message)
 
-    # -- Selbst-Update ------------------------------------------------------
+    # -- Self-update --------------------------------------------------------
     def _check_updates_async(self, manual: bool = False):
         threading.Thread(target=self._check_updates, args=(manual,),
                          daemon=True).start()
@@ -554,7 +554,7 @@ class PPCoachApp(ctk.CTk):
         try:
             info = updater.check_for_update()
         except Exception:
-            # Ein nicht erreichbarer Update-Server darf die App nie stoeren.
+            # An unreachable update server must never disturb the app.
             if manual:
                 self.after(0, lambda: self.footer_label.configure(
                     text=f"v{VERSION}  ·  check failed  ·  try again"))
@@ -578,8 +578,8 @@ class PPCoachApp(ctk.CTk):
             text=f"v{VERSION}  ·  version {info.version} available")
 
     def _open_update_dialog(self):
-        """Zeigt die Update-Details als In-App-Box (kein zweites Fenster). Ein Klick
-        auf 'Update now' laedt herunter, installiert und startet automatisch neu."""
+        """Shows the update details as an in-app box (no second window). A click on
+        'Update now' downloads, installs and restarts automatically."""
         info = self._update_info
         if info is None:
             return
@@ -656,7 +656,7 @@ class PPCoachApp(ctk.CTk):
                     info, progress_cb=lambda f: self.after(0, progress.set, f))
                 self.after(0, lambda: status.configure(
                     text="Installing & restarting …"))
-                updater.apply_update_and_restart(path)  # beendet den Prozess
+                updater.apply_update_and_restart(path)  # terminates the process
             except Exception as exc:
                 self.after(0, self._update_failed, update_btn, later_btn, status, exc)
 
@@ -667,7 +667,7 @@ class PPCoachApp(ctk.CTk):
         later_btn.configure(state="normal")
         status.configure(text=f"Update failed: {exc}")
 
-    # -- In-App-Overlays (kein separates Fenster) ---------------------------
+    # -- In-app overlays (no separate window) -------------------------------
     def _close_overlay(self):
         overlay = getattr(self, "_overlay", None)
         if overlay is not None and overlay.winfo_exists():
@@ -677,9 +677,9 @@ class PPCoachApp(ctk.CTk):
         self.unbind("<Escape>")
 
     def _make_dimmed_backdrop(self):
-        """Nimmt einen Schnappschuss des aktuellen Fensters und dunkelt ihn nur
-        leicht ab. So bleibt der Hintergrund hinter dem Popup sichtbar (statt
-        komplett schwarz). Faellt bei jedem Fehler tolerant auf None zurueck."""
+        """Takes a snapshot of the current window and only dims it slightly. This
+        keeps the background behind the popup visible (instead of fully black).
+        Falls back tolerantly to None on any error."""
         if Image is None:
             return None
         try:
@@ -694,17 +694,16 @@ class PPCoachApp(ctk.CTk):
                 return None
             shot = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert("RGB")
             dark = Image.new("RGB", shot.size, (8, 9, 14))
-            dimmed = Image.blend(shot, dark, 0.4)  # nur ein bisschen abdunkeln
+            dimmed = Image.blend(shot, dark, 0.4)  # only dim a little
             return ctk.CTkImage(light_image=dimmed, dark_image=dimmed, size=(w, h))
         except Exception:
             return None
 
     def _open_overlay(self, width, height, closable=True):
-        """Baut ein modales In-App-Overlay (leicht abgedunkelter Hintergrund +
-        zentrierte Karte) und liefert die Karte zurueck. Oeffnet KEIN zweites
-        Fenster."""
+        """Builds a modal in-app overlay (slightly dimmed background + centered
+        card) and returns the card. Does NOT open a second window."""
         self._close_overlay()
-        # Schnappschuss VOR dem Scrim aufnehmen, damit der echte Inhalt drin ist.
+        # Take the snapshot BEFORE the scrim so the real content is captured.
         backdrop = self._make_dimmed_backdrop()
 
         scrim = ctk.CTkFrame(self, fg_color=theme.BG_WINDOW, corner_radius=0)
@@ -719,7 +718,7 @@ class PPCoachApp(ctk.CTk):
                 bg.bind("<Button-1>", lambda _e: self._close_overlay())
 
         if closable:
-            scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # ausserhalb = zu
+            scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # outside = close
             self.bind("<Escape>", lambda _e: self._close_overlay())
         card = ctk.CTkFrame(scrim, fg_color=theme.BG_CARD,
                             corner_radius=theme.RADIUS_CARD, width=width, height=height)
@@ -730,7 +729,7 @@ class PPCoachApp(ctk.CTk):
     def _show_ai_teaser(self):
         card = self._open_overlay(480, 510)
 
-        # Gradient-Kopf in der gleichen auffaelligen AI-Werbefarbe wie der Banner
+        # Gradient header in the same loud AI ad color as the banner
         header = theme.GradientBanner(
             card, on_click=lambda: None, text="✨  AI Coach", height=72, cta="",
             colors=(theme.AI_GRADIENT_START, theme.AI_GRADIENT_END),

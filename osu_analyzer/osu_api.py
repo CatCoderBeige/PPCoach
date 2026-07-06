@@ -1,4 +1,4 @@
-"""Client fuer die offizielle osu! API v2 mit Fehlerbehandlung."""
+"""Client for the official osu! API v2 with error handling."""
 
 import requests
 
@@ -10,7 +10,7 @@ REQUEST_TIMEOUT = 10
 
 
 class OsuApiError(Exception):
-    """Verstaendliche Fehlermeldung fuer die GUI-Schicht."""
+    """Human-readable error message for the GUI layer."""
 
 
 class UserNotFoundError(OsuApiError):
@@ -89,8 +89,8 @@ class OsuApiClient:
             raise OsuApiError("Could not read the osu! API response.") from exc
 
     def get_top_scores(self, user_id: int, limit: int = 10) -> list[dict]:
-        # /scores/best akzeptiert nur die numerische User-ID, keinen Nutzernamen
-        # (anders als /users/{user}/osu) - daher hier immer id, nie key=username.
+        # /scores/best only accepts the numeric user ID, not a username
+        # (unlike /users/{user}/osu) - so always use id here, never key=username.
         response = _request(
             "GET",
             f"{API_BASE}/users/{user_id}/scores/best",

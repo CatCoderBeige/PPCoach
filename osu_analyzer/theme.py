@@ -1,9 +1,8 @@
-"""Zentrale Design-Tokens und wiederverwendbare UI-Bausteine fuer PPCoach.
+"""Central design tokens and reusable UI building blocks for PPCoach.
 
-Minimalistisch & dunkel: neutrale Basis mit osu!-Pink als einziger Markenfarbe -
-abgestimmt auf osu!-Gamer.
-Alles CustomTkinter/Tkinter, damit die App weiterhin als eine einzelne .exe
-gebaut werden kann.
+Minimalist & dark: a neutral base with osu! pink as the only brand color -
+tailored to osu! gamers.
+All CustomTkinter/Tkinter, so the app can still be built as a single .exe.
 """
 
 import math
@@ -11,34 +10,34 @@ import tkinter as tk
 
 import customtkinter as ctk
 
-# --- Farb-Palette (minimalistisch & kohaerent) -----------------------------
-# Prinzip: neutrale, kuehle Dunkelbasis + EINE Markenfarbe (osu!-Pink), sparsam
-# eingesetzt. Kategorie-Akzente sind bewusst gedaempft und tonal aufeinander
-# abgestimmt (aehnliche Saettigung & Helligkeit) - sie wirken als Familie statt
-# bunt. Das haelt das Bild ruhig und modern, passend zur osu!-Identitaet.
+# --- Color palette (minimalist & coherent) ---------------------------------
+# Principle: a neutral, cool dark base + ONE brand color (osu! pink), used
+# sparingly. Category accents are deliberately muted and tonally aligned (similar
+# saturation & brightness) - they read as a family rather than colorful. This keeps
+# the picture calm and modern, matching the osu! identity.
 
-# Neutrale Basis
-BG_WINDOW = "#0F1115"       # Fensterhintergrund (kuehles Fast-Schwarz, neutral)
-BG_CARD = "#171A20"         # Karten-Oberflaeche
-BG_CARD_ALT = "#1D212A"     # leicht erhoehte Karte (z.B. Hero-Header)
-BG_INPUT = "#1A1E25"        # Eingabefelder
-BORDER = "#2A2F3A"          # dezente Linien/Raender
+# Neutral base
+BG_WINDOW = "#0F1115"       # window background (cool near-black, neutral)
+BG_CARD = "#171A20"         # card surface
+BG_CARD_ALT = "#1D212A"     # slightly raised card (e.g. hero header)
+BG_INPUT = "#1A1E25"        # input fields
+BORDER = "#2A2F3A"          # subtle lines/borders
 
-TEXT_PRIMARY = "#EAECEF"    # Haupttext (kuehles Fast-Weiss)
-TEXT_MUTED = "#8B93A1"      # gedaempfter Text
+TEXT_PRIMARY = "#EAECEF"    # main text (cool near-white)
+TEXT_MUTED = "#8B93A1"      # muted text
 TEXT_ON_ACCENT = "#FFFFFF"
 
-# Markenfarbe: osu!-Pink - nur fuer primaere Aktionen & wichtige Highlights.
+# Brand color: osu! pink - only for primary actions & important highlights.
 ACCENT = "#FF6AA6"
 ACCENT_HOVER = "#FF85B6"
 
-# Semantik
-POSITIVE = "#46B37E"        # "Update verfuegbar" / Erfolg (ruhiges Gruen)
+# Semantics
+POSITIVE = "#46B37E"        # "update available" / success (calm green)
 POSITIVE_HOVER = "#57C08E"
-POSITIVE_TEXT = "#08130C"   # dunkler Text auf hellem Gruen-Button
-DANGER = "#DB6B63"          # Fehler/Hinweis-Karten (gedaempftes Rot)
+POSITIVE_TEXT = "#08130C"   # dark text on a light green button
+DANGER = "#DB6B63"          # error/notice cards (muted red)
 
-# Gedaempfte, tonal abgestimmte Kategorie-Akzente (eine Farbfamilie).
+# Muted, tonally aligned category accents (one color family).
 CAT_BLUE = "#6E9BD1"
 CAT_TEAL = "#5FB0A6"
 CAT_GREEN = "#79B58C"
@@ -48,9 +47,9 @@ CAT_ROSE = "#D97BA4"
 CAT_RED = "#D9776F"
 CAT_NEUTRAL = "#8B93A1"
 
-# Kategorie -> (Symbol, Akzentfarbe). Simplistische, monochrome Glyphen; die
-# gedaempfte Farbe kodiert die Kategorie, ohne das Bild bunt zu machen. "general"
-# ist der Fallback, damit wirklich jeder Tipp ein Symbol bekommt.
+# Category -> (icon, accent color). Simplistic, monochrome glyphs; the muted color
+# encodes the category without making the picture colorful. "general" is the
+# fallback so every tip really gets an icon.
 CATEGORY_STYLE = {
     "accuracy":    ("◎", CAT_BLUE),
     "mods":        ("↯", CAT_AMBER),
@@ -65,25 +64,25 @@ DEFAULT_CATEGORY = "general"
 
 
 def category_style(category: str) -> tuple[str, str]:
-    """Liefert (Symbol, Farbe) fuer eine Kategorie, mit sicherem Fallback."""
+    """Returns (icon, color) for a category, with a safe fallback."""
     return CATEGORY_STYLE.get(category, CATEGORY_STYLE[DEFAULT_CATEGORY])
 
-# Gradient fuer AI-Banner/Popup-Kopf: ruhiger Ein-Ton-Verlauf (Rose -> osu!-Pink),
-# bleibt in der Markenfamilie statt Lila und Pink zu mischen.
-GRADIENT_START = (201, 92, 142)   # #C95C8E gedaempftes Rose
-GRADIENT_END = (255, 106, 166)    # #FF6AA6 osu!-Pink
+# Gradient for the AI banner/popup header: a calm single-tone ramp (rose ->
+# osu! pink), staying within the brand family instead of mixing purple and pink.
+GRADIENT_START = (201, 92, 142)   # #C95C8E muted rose
+GRADIENT_END = (255, 106, 166)    # #FF6AA6 osu! pink
 
-# Bewusst abweichende, laute "Werbe"-Farbe fuer den AI-Coach-Banner: eine
-# Cyan->Violett-Kombi, die sich klar vom pink/neutralen Rest abhebt. Ad-Charakter -
-# soll auffallen und absichtlich NICHT ganz zum Rest passen.
-AI_GRADIENT_START = (34, 211, 238)   # #22D3EE Cyan
-AI_GRADIENT_END = (124, 92, 255)     # #7C5CFF Violett
+# Deliberately different, loud "ad" color for the AI Coach banner: a cyan->violet
+# combo that clearly stands out from the pink/neutral rest. Ad character - it should
+# catch the eye and intentionally NOT quite match the rest.
+AI_GRADIENT_START = (34, 211, 238)   # #22D3EE cyan
+AI_GRADIENT_END = (124, 92, 255)     # #7C5CFF violet
 
-# Ruhiger Gruen->Cyan-Verlauf fuer den Kopf der Update-Box (Signal: "los/verfuegbar").
-UPDATE_GRADIENT_START = (70, 179, 126)   # #46B37E Gruen
-UPDATE_GRADIENT_END = (34, 211, 238)     # #22D3EE Cyan
+# Calm green->cyan ramp for the update box header (signal: "go/available").
+UPDATE_GRADIENT_START = (70, 179, 126)   # #46B37E green
+UPDATE_GRADIENT_END = (34, 211, 238)     # #22D3EE cyan
 
-# Ecken-Radien
+# Corner radii
 RADIUS_CARD = 16
 RADIUS_BUTTON = 12
 
@@ -91,12 +90,12 @@ FONT_FAMILY = "Segoe UI"
 
 
 def font(size: int, weight: str = "normal") -> ctk.CTkFont:
-    """Kurzhelfer fuer konsistente Schriftarten."""
+    """Small helper for consistent fonts."""
     return ctk.CTkFont(family=FONT_FAMILY, size=size, weight=weight)
 
 
 def hex_between(start: tuple[int, int, int], end: tuple[int, int, int], t: float) -> str:
-    """Interpoliert linear zwischen zwei RGB-Farben und liefert einen Hex-String."""
+    """Linearly interpolates between two RGB colors and returns a hex string."""
     r = round(start[0] + (end[0] - start[0]) * t)
     g = round(start[1] + (end[1] - start[1]) * t)
     b = round(start[2] + (end[2] - start[2]) * t)
@@ -104,7 +103,7 @@ def hex_between(start: tuple[int, int, int], end: tuple[int, int, int], t: float
 
 
 def _lighten(rgb: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
-    """Hellt eine RGB-Farbe in Richtung Weiss auf (0.0 = unveraendert)."""
+    """Lightens an RGB color toward white (0.0 = unchanged)."""
     return tuple(round(c + (255 - c) * amount) for c in rgb)  # type: ignore[return-value]
 
 
@@ -144,12 +143,12 @@ def fmt_hours(seconds) -> str:
 
 # --- Widgets ---------------------------------------------------------------
 class GradientBanner(tk.Canvas):
-    """Horizontaler Gradient-Button, der das AI-Feature bewirbt.
+    """Horizontal gradient button that promotes the AI feature.
 
-    Rein visuell/Marketing - beim Klick wird der uebergebene Callback aufgerufen
-    (in der App: ein Info-Popup). Hover hellt den Verlauf leicht auf. Farben und
-    ein optionaler "Badge" (z.B. NEU) sind konfigurierbar, damit der AI-Banner
-    eine bewusst auffaellige Werbefarbe tragen kann.
+    Purely visual/marketing - on click the provided callback is invoked (in the app:
+    an info popup). Hover lightens the gradient slightly. Colors and an optional
+    "badge" (e.g. NEW) are configurable, so the AI banner can carry a deliberately
+    loud ad color.
     """
 
     def __init__(self, master, on_click, text="✨  AI Coach  –  coming soon",
@@ -162,8 +161,8 @@ class GradientBanner(tk.Canvas):
         self._badge = badge
         self._cta = cta
         self._start, self._end = colors if colors else (GRADIENT_START, GRADIENT_END)
-        # Als Popup-Kopf sollen die oberen Ecken zur runden Karte passen; als
-        # freistehender Banner (round_top=0) bleibt er randlos eckig.
+        # As a popup header the top corners should match the rounded card; as a
+        # free-standing banner (round_top=0) it stays edge-to-edge square.
         self._round_top = round_top
         self._corner_color = corner_color
         self._hover = False
@@ -205,7 +204,7 @@ class GradientBanner(tk.Canvas):
 
         text_x = 22
         if self._badge:
-            # kleines weisses "NEU"-Pill mit farbigem Text -> Werbe-Charakter
+            # small white "NEW" pill with colored text -> ad character
             badge_font = (FONT_FAMILY, 11, "bold")
             probe = self.create_text(0, -50, text=self._badge, font=badge_font,
                                      anchor="nw")
@@ -240,9 +239,9 @@ class GradientBanner(tk.Canvas):
             )
 
     def _cut_top_corners(self, width):
-        """Malt die kleinen Zwickel ausserhalb der oberen Rundungen in der
-        Kartenfarbe uebermalt - so wirken die oberen Ecken genauso abgerundet
-        wie die untere Karte (tk-Canvas kann selbst keine runden Ecken)."""
+        """Paints the small wedges outside the top rounding in the card color - so
+        the top corners look just as rounded as the card below (a tk Canvas can't
+        do rounded corners on its own)."""
         r = self._round_top
         cc = self._corner_color
         seg = 6
@@ -261,7 +260,7 @@ class GradientBanner(tk.Canvas):
 
 
 class StatCard(ctk.CTkFrame):
-    """Kleine Kachel: grosser Wert oben, kleines Label darunter."""
+    """Small tile: large value on top, small label below."""
 
     def __init__(self, master, value: str, label: str, accent: str = ACCENT,
                  **kwargs):
@@ -278,7 +277,7 @@ class StatCard(ctk.CTkFrame):
 
 
 class TipCard(ctk.CTkFrame):
-    """Tipp-Karte: farbiges Kategorie-Symbol links, Titel + umbrochener Body rechts."""
+    """Tip card: colored category icon on the left, title + wrapped body on the right."""
 
     def __init__(self, master, title: str, body: str, accent: str = ACCENT,
                  icon: str = "◆", wraplength: int = 280, **kwargs):

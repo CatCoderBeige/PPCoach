@@ -1,4 +1,4 @@
-"""Einstiegspunkt fuer den osu! Analyzer (Desktop-GUI)."""
+"""Entry point for the osu! Analyzer (desktop GUI)."""
 
 from osu_analyzer.gui import main
 

@@ -1,20 +1,19 @@
-"""Selbst-Update-Mechanismus (Launcher-artig) fuer PPCoach.
+"""Self-update mechanism (launcher-style) for PPCoach.
 
-Idee: Der Nutzer muss nie manuell eine neue Datei herunterladen. Die App fragt
-beim Start eine kleine JSON-Manifest-Datei ab (``UPDATE_MANIFEST_URL`` in config.py),
-vergleicht die dort genannte Version mit der eigenen und kann - auf Knopfdruck -
-die neue ``.exe`` herunterladen, die laufende Datei ersetzen und sich neu starten.
+Idea: the user never has to download a new file manually. On startup the app
+queries the GitHub Releases API (``UPDATE_API_URL`` in config.py), compares the
+release version with its own, and can - at the click of a button - download the new
+``.exe``, replace the running file and restart itself.
 
-Der eigentliche Austausch funktioniert nur in der gebauten ``.exe`` (``sys.frozen``).
-Im Python-Dev-Modus gibt es keine Ziel-.exe; dann wird der Austausch uebersprungen.
+The actual replacement only works in the built ``.exe`` (``sys.frozen``). In Python
+dev mode there is no target .exe, so the replacement is skipped.
 
-Windows-Besonderheit: Eine laufende ``.exe`` kann ihren INHALT nicht selbst
-ueberschreiben - aber sie kann UMBENANNT werden, waehrend sie laeuft. Genau das
-nutzt ``apply_update_and_restart``: die laufende Exe wird zur Seite umbenannt
-(``.old``), die neue Exe an den Originalpfad geschrieben, die neue Version gestartet
-und der Prozess beendet. Beim naechsten Start wird die ``.old`` aufgeraeumt. Diese
-Technik ist deutlich robuster als der fruehere "warten + ueberschreiben"-Ansatz
-(keine Race Condition, kein Batch, das die Datei sperren koennte).
+Windows quirk: a running ``.exe`` cannot overwrite its own CONTENT - but it can be
+RENAMED while running. That's exactly what ``apply_update_and_restart`` uses: the
+running exe is renamed aside (``.old``), the new exe is written to the original path,
+the new version is started and the process exits. On the next start the ``.old`` is
+cleaned up. This technique is far more robust than the earlier "wait + overwrite"
+approach (no race condition, no batch file that could lock the file).
 """
 
 import os
@@ -29,20 +28,20 @@ import requests
 
 from .config import UPDATE_API_URL, VERSION
 
-# Windows-Prozess-Flags, damit der neu gestartete Prozess unser Beenden ueberlebt.
+# Windows process flags so the newly started process survives our own exit.
 _DETACHED_PROCESS = 0x00000008
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 _UPDATE_EXE_NAME = "PPCoach_update.exe"
 _LOG_NAME = "ppcoach_update.log"
 
-# Schutz gegen doppeltes Anwenden im selben Prozess (z.B. schneller Doppelklick):
-# sobald ein Update laeuft, ignorieren weitere Aufrufe.
+# Guard against applying twice in the same process (e.g. a fast double-click):
+# once an update is running, further calls are ignored.
 _apply_started = False
 
 
 def _log(msg: str) -> None:
-    """Schreibt eine Diagnosezeile nach %TEMP%\\ppcoach_update.log (Fehler ignoriert)."""
+    """Writes a diagnostic line to %TEMP%\\ppcoach_update.log (errors ignored)."""
     try:
         line = f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {msg}\n"
         with open(os.path.join(tempfile.gettempdir(), _LOG_NAME), "a",
@@ -53,18 +52,18 @@ def _log(msg: str) -> None:
 
 
 def cleanup_old() -> None:
-    """Loescht die beim letzten Update zur Seite gelegte ``PPCoach.exe.old`` sowie
-    Reste alter Update-Ansaetze (Temp-Exe, veraltete Batch-Datei).
+    """Deletes the ``PPCoach.exe.old`` left aside by the last update, as well as
+    leftovers from older update approaches (temp exe, stale batch file).
 
-    Beim Start aufrufen. Falls eine Datei noch gesperrt ist (Vorgaenger-Prozess noch
-    nicht ganz beendet), wird sie beim naechsten Start erneut versucht.
+    Call on startup. If a file is still locked (previous process not fully exited
+    yet), it is retried on the next start.
     """
     if not is_frozen():
         return
     leftovers = [
         sys.executable + ".old",
         os.path.join(tempfile.gettempdir(), _UPDATE_EXE_NAME),
-        os.path.join(tempfile.gettempdir(), "ppcoach_update.bat"),  # alter Ansatz
+        os.path.join(tempfile.gettempdir(), "ppcoach_update.bat"),  # old approach
     ]
     for path in leftovers:
         if os.path.exists(path):
@@ -76,10 +75,10 @@ def cleanup_old() -> None:
 
 
 def _strip_mark_of_the_web(path: str) -> None:
-    """Entfernt die 'Mark of the Web' (NTFS-Datenstrom ``:Zone.Identifier``) von
-    ``path``. Ohne diese Markierung stuft Windows die frisch eingespielte Exe nicht
-    als 'aus dem Internet' ein - so erscheint beim automatischen Neustart keine
-    SmartScreen-/Sicherheitswarnung. Fehler (kein NTFS, nicht vorhanden) sind egal.
+    """Removes the 'Mark of the Web' (NTFS stream ``:Zone.Identifier``) from
+    ``path``. Without this marker Windows does not treat the freshly installed exe
+    as 'from the internet' - so no SmartScreen/security warning appears on the
+    automatic restart. Errors (not NTFS, not present) don't matter.
     """
     try:
         os.remove(path + ":Zone.Identifier")
@@ -96,12 +95,12 @@ class UpdateInfo:
 
 
 def is_frozen() -> bool:
-    """True, wenn wir als gebaute .exe laufen (PyInstaller), nicht als python main.py."""
+    """True if we run as a built .exe (PyInstaller), not as python main.py."""
     return bool(getattr(sys, "frozen", False))
 
 
 def _parse_version(value: str) -> tuple[int, ...]:
-    """'1.2.0' / 'v1.2' -> (1, 2, 0). Nicht-numerische Teile werden zu 0."""
+    """'1.2.0' / 'v1.2' -> (1, 2, 0). Non-numeric parts become 0."""
     parts = []
     for piece in str(value).strip().lstrip("vV").split("."):
         try:
@@ -112,7 +111,7 @@ def _parse_version(value: str) -> tuple[int, ...]:
 
 
 def is_newer(remote: str, local: str = VERSION) -> bool:
-    """Vergleicht zwei Versions-Strings komponentenweise (auf gleiche Laenge aufgefuellt)."""
+    """Compares two version strings component-wise (padded to equal length)."""
     a, b = _parse_version(remote), _parse_version(local)
     length = max(len(a), len(b))
     a += (0,) * (length - len(a))
@@ -121,15 +120,15 @@ def is_newer(remote: str, local: str = VERSION) -> bool:
 
 
 def check_for_update(timeout: int = 8) -> UpdateInfo | None:
-    """Fragt das neueste GitHub-Release ab und liefert UpdateInfo, falls neuer.
+    """Queries the latest GitHub release and returns UpdateInfo if it is newer.
 
-    Liest tag_name (Version), body (Changelog) und das .exe-Asset (Download) aus der
-    GitHub-Releases-API. No-Cache-Header + eindeutiger Query-Parameter verhindern,
-    dass ein veralteter (gecachter) Stand geliefert wird - so wird ein neues Release
-    bei JEDER Pruefung zuverlaessig erkannt.
+    Reads tag_name (version), body (changelog) and the .exe asset (download) from the
+    GitHub Releases API. No-cache headers + a unique query parameter prevent a stale
+    (cached) state from being served - so a new release is detected reliably on EVERY
+    check.
 
-    Ist ``UPDATE_API_URL`` leer, wird still None zurueckgegeben. Wirft bei Netzwerk-/
-    Formatfehlern eine Exception - der Aufrufer behandelt das tolerant.
+    If ``UPDATE_API_URL`` is empty, None is returned silently. Raises an exception on
+    network/format errors - the caller handles that tolerantly.
     """
     if not UPDATE_API_URL:
         return None
@@ -142,7 +141,7 @@ def check_for_update(timeout: int = 8) -> UpdateInfo | None:
             "Cache-Control": "no-cache",
             "Pragma": "no-cache",
         },
-        params={"_": int(time.time())},  # Cache-Buster
+        params={"_": int(time.time())},  # cache buster
     )
     resp.raise_for_status()
     data = resp.json()
@@ -150,7 +149,7 @@ def check_for_update(timeout: int = 8) -> UpdateInfo | None:
     version = str(data.get("tag_name", "")).lstrip("vV")
     notes = str(data.get("body") or "").strip()
 
-    # Download-Link: das erste .exe-Asset des Releases.
+    # Download link: the first .exe asset of the release.
     url = ""
     for asset in data.get("assets", []):
         name = str(asset.get("name", ""))
@@ -164,10 +163,10 @@ def check_for_update(timeout: int = 8) -> UpdateInfo | None:
 
 
 def download_update(info: UpdateInfo, progress_cb=None, timeout: int = 60) -> str:
-    """Laedt die neue .exe in den Temp-Ordner und liefert den Pfad zurueck.
+    """Downloads the new .exe into the temp folder and returns the path.
 
-    ``progress_cb(fraction: float)`` wird - falls uebergeben und die Groesse bekannt
-    ist - mit dem Fortschritt (0.0..1.0) aufgerufen.
+    ``progress_cb(fraction: float)`` is called with the progress (0.0..1.0) - if
+    provided and the size is known.
     """
     dest = os.path.join(tempfile.gettempdir(), _UPDATE_EXE_NAME)
 
@@ -187,8 +186,8 @@ def download_update(info: UpdateInfo, progress_cb=None, timeout: int = 60) -> st
     if progress_cb:
         progress_cb(1.0)
 
-    # Sanity-Check: eine echte Windows-.exe beginnt mit "MZ". Verhindert, dass eine
-    # HTML-Fehlerseite o.ae. faelschlich als Programm eingespielt wird.
+    # Sanity check: a real Windows .exe starts with "MZ". Prevents an HTML error
+    # page or similar from being installed as the program by mistake.
     with open(dest, "rb") as fh:
         magic = fh.read(2)
     if magic != b"MZ":
@@ -198,20 +197,20 @@ def download_update(info: UpdateInfo, progress_cb=None, timeout: int = 60) -> st
 
 
 def replace_executable(current: str, new_exe: str) -> str:
-    """Tauscht die Datei ``current`` gegen ``new_exe`` aus und liefert den Pfad der
-    zur Seite gelegten alten Datei (``current + ".old"``).
+    """Swaps the file ``current`` for ``new_exe`` and returns the path of the old
+    file set aside (``current + ".old"``).
 
-    Technik: ``current`` wird umbenannt (``.old``) - das erlaubt Windows auch fuer
-    eine gerade laufende Exe -, dann wird ``new_exe`` an den Originalpfad verschoben
-    (mit Retries gegen kurzzeitige Virenscanner-Sperren). Schlaegt das Verschieben
-    fehl, wird zurueckgerollt und eine Exception geworfen, damit nie eine kaputte/
-    fehlende Exe zurueckbleibt. Separat gehalten, damit die Logik testbar ist.
+    Technique: ``current`` is renamed (``.old``) - Windows allows this even for a
+    currently running exe -, then ``new_exe`` is moved to the original path (with
+    retries against short-lived antivirus locks). If the move fails, it is rolled
+    back and an exception is raised, so a broken/missing exe is never left behind.
+    Kept separate so the logic is testable.
     """
     old = current + ".old"
 
-    # Idempotent: fehlt die Quelldatei, wurde die neue Exe bereits eingespielt
-    # (z.B. durch eine zweite Instanz oder einen doppelten Klick). Dann gibt es
-    # nichts mehr zu tun - kein Rollback, keine Fehlermeldung, App startet normal neu.
+    # Idempotent: if the source file is missing, the new exe was already installed
+    # (e.g. by a second instance or a double click). Then there is nothing left to
+    # do - no rollback, no error message, the app just restarts normally.
     if not os.path.exists(new_exe):
         _log("replace: new_exe missing -> already applied, nothing to do")
         return old
@@ -222,7 +221,7 @@ def replace_executable(current: str, new_exe: str) -> str:
         except OSError as exc:
             _log(f"replace: could not remove stale .old: {exc}")
 
-    os.rename(current, old)  # laufende Exe zur Seite (waehrend sie laeuft erlaubt)
+    os.rename(current, old)  # running exe set aside (allowed while it runs)
     _log("replace: renamed current -> .old")
 
     last_err = None
@@ -239,7 +238,7 @@ def replace_executable(current: str, new_exe: str) -> str:
 
     if last_err is not None:
         try:
-            os.rename(old, current)  # Rollback -> App bleibt startbar
+            os.rename(old, current)  # rollback -> app stays launchable
             _log("replace: rolled back .old -> current")
         except OSError as exc:
             _log(f"replace: ROLLBACK FAILED: {exc}")
@@ -249,10 +248,10 @@ def replace_executable(current: str, new_exe: str) -> str:
 
 
 def apply_update_and_restart(new_exe: str) -> None:
-    """Ersetzt die laufende .exe durch ``new_exe`` und startet die neue Version neu.
+    """Replaces the running .exe with ``new_exe`` and restarts the new version.
 
-    Beendet den aktuellen Prozess bei Erfolg (``os._exit``). Die zurueckgelassene
-    ``.old`` raeumt der neu gestartete Prozess beim Start via ``cleanup_old()`` auf.
+    Terminates the current process on success (``os._exit``). The leftover ``.old``
+    is cleaned up by the newly started process on startup via ``cleanup_old()``.
     """
     global _apply_started
     if _apply_started:
@@ -268,8 +267,8 @@ def apply_update_and_restart(new_exe: str) -> None:
     current = sys.executable
     _log(f"apply: current={current}  new={new_exe}")
     replace_executable(current, new_exe)
-    # Frisch eingespielte Exe nicht als 'aus dem Internet' markiert lassen -> sonst
-    # koennte Windows beim Neustart eine SmartScreen-Warnung zeigen.
+    # Don't leave the freshly installed exe marked as 'from the internet' -> otherwise
+    # Windows could show a SmartScreen warning on the restart.
     _strip_mark_of_the_web(current)
 
     try:

@@ -1,8 +1,8 @@
-"""Generiert ein Platzhalter-Logo/Icon fuer PPCoach.
+"""Generates a placeholder logo/icon for PPCoach.
 
-Einmaliges Hilfsskript, kein Teil des Produkts. Bei Bedarf mit `python
-assets/generate_icon.py` neu ausfuehren, oder einfach die erzeugten Dateien
-durch ein eigenes Logo ersetzen (gleicher Dateiname/gleiche Groesse reicht).
+One-off helper script, not part of the product. Re-run with `python
+assets/generate_icon.py` if needed, or simply replace the generated files with
+your own logo (same filename/same size is enough).
 """
 
 from PIL import Image, ImageDraw
@@ -35,7 +35,7 @@ def build_base_image() -> Image.Image:
     draw = ImageDraw.Draw(rounded)
     cx, cy = SIZE / 2, SIZE / 2
 
-    # Stilisierter aufwaerts zeigender Pfeil/Trend als "Verbesserung"-Symbol
+    # Stylized upward-pointing arrow/trend as an "improvement" symbol
     points = [
         (cx - 62, cy + 46),
         (cx - 18, cy + 4),
@@ -66,4 +66,4 @@ if __name__ == "__main__":
         "assets/icon.ico",
         sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
     )
-    print("Erzeugt: assets/logo.png, assets/icon.ico")
+    print("Generated: assets/logo.png, assets/icon.ico")
