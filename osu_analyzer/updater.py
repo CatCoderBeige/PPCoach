@@ -174,13 +174,55 @@ def download_update(info: UpdateInfo, progress_cb=None, timeout: int = 60) -> st
     return dest
 
 
-def apply_update_and_restart(new_exe: str) -> None:
-    """Ersetzt die laufende .exe durch ``new_exe`` und startet neu (Windows).
+def replace_executable(current: str, new_exe: str) -> str:
+    """Tauscht die Datei ``current`` gegen ``new_exe`` aus und liefert den Pfad der
+    zur Seite gelegten alten Datei (``current + ".old"``).
 
-    Technik: die laufende Exe wird umbenannt (``.old``) - das erlaubt Windows auch
-    fuer ein gerade laufendes Programm -, dann wird die neue Exe an den Originalpfad
-    geschrieben und gestartet. Schlaegt der Austausch fehl, wird zurueckgerollt, damit
-    der Nutzer nie ohne funktionierende Exe dasteht. Beendet den Prozess bei Erfolg.
+    Technik: ``current`` wird umbenannt (``.old``) - das erlaubt Windows auch fuer
+    eine gerade laufende Exe -, dann wird ``new_exe`` an den Originalpfad verschoben
+    (mit Retries gegen kurzzeitige Virenscanner-Sperren). Schlaegt das Verschieben
+    fehl, wird zurueckgerollt und eine Exception geworfen, damit nie eine kaputte/
+    fehlende Exe zurueckbleibt. Separat gehalten, damit die Logik testbar ist.
+    """
+    old = current + ".old"
+
+    if os.path.exists(old):
+        try:
+            os.remove(old)
+        except OSError as exc:
+            _log(f"replace: could not remove stale .old: {exc}")
+
+    os.rename(current, old)  # laufende Exe zur Seite (waehrend sie laeuft erlaubt)
+    _log("replace: renamed current -> .old")
+
+    last_err = None
+    for attempt in range(5):
+        try:
+            shutil.move(new_exe, current)
+            _log(f"replace: moved new -> current (attempt {attempt + 1})")
+            last_err = None
+            break
+        except OSError as exc:
+            last_err = exc
+            _log(f"replace: move attempt {attempt + 1} failed: {exc}")
+            time.sleep(0.6)
+
+    if last_err is not None:
+        try:
+            os.rename(old, current)  # Rollback -> App bleibt startbar
+            _log("replace: rolled back .old -> current")
+        except OSError as exc:
+            _log(f"replace: ROLLBACK FAILED: {exc}")
+        raise RuntimeError(f"Could not install the update: {last_err}")
+
+    return old
+
+
+def apply_update_and_restart(new_exe: str) -> None:
+    """Ersetzt die laufende .exe durch ``new_exe`` und startet die neue Version neu.
+
+    Beendet den aktuellen Prozess bei Erfolg (``os._exit``). Die zurueckgelassene
+    ``.old`` raeumt der neu gestartete Prozess beim Start via ``cleanup_old()`` auf.
     """
     if not is_frozen():
         raise RuntimeError(
@@ -188,49 +230,9 @@ def apply_update_and_restart(new_exe: str) -> None:
         )
 
     current = sys.executable
-    old = current + ".old"
     _log(f"apply: current={current}  new={new_exe}")
+    replace_executable(current, new_exe)
 
-    # Etwaige Reste eines fruehreren Updates entfernen.
-    if os.path.exists(old):
-        try:
-            os.remove(old)
-        except OSError as exc:
-            _log(f"apply: could not remove stale .old: {exc}")
-
-    # 1) Laufende Exe zur Seite umbenennen (waehrend sie laeuft erlaubt).
-    try:
-        os.rename(current, old)
-        _log("apply: renamed current -> .old")
-    except OSError as exc:
-        _log(f"apply: rename failed: {exc}")
-        raise RuntimeError(f"Could not rename the running app: {exc}") from exc
-
-    # 2) Neue Exe an den Originalpfad legen (mit ein paar Retries fuer den Fall, dass
-    #    ein Virenscanner die Datei kurz sperrt).
-    last_err = None
-    for attempt in range(5):
-        try:
-            shutil.move(new_exe, current)
-            _log(f"apply: moved new -> current (attempt {attempt + 1})")
-            last_err = None
-            break
-        except OSError as exc:
-            last_err = exc
-            _log(f"apply: move attempt {attempt + 1} failed: {exc}")
-            time.sleep(0.6)
-
-    if last_err is not None:
-        # Rollback: Originaldatei wiederherstellen, damit die App startbar bleibt.
-        try:
-            os.rename(old, current)
-            _log("apply: rolled back .old -> current")
-        except OSError as exc:
-            _log(f"apply: ROLLBACK FAILED: {exc}")
-        raise RuntimeError(f"Could not install the update: {last_err}")
-
-    # 3) Neue Version starten und beenden. Die .old raeumt der neue Prozess beim
-    #    Start via cleanup_old() auf.
     try:
         subprocess.Popen(
             [current],
