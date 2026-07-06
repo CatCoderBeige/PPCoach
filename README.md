@@ -67,6 +67,21 @@ Der Selbstaustausch funktioniert nur in der gebauten `.exe` (nicht beim Start ue
 testen: alte Version installieren, `latest.json` auf eine hoehere Version zeigen lassen
 und den Update-Knopf druecken.
 
+### Neues Update veroeffentlichen
+
+Die App-Updates liegen als **GitHub Releases** im Repo
+`https://github.com/CatCoderBeige/PPCoach`. `UPDATE_MANIFEST_URL` in `config.py` zeigt
+bereits auf die `latest.json` des jeweils neuesten Releases.
+
+Ein neues Update ist damit ein Schritt:
+
+1. In `osu_analyzer/config.py` die `VERSION` hochzaehlen (z.B. `1.0.0` -> `1.1.0`).
+2. `python release.py --notes "Was ist neu ..."`
+
+Das Skript baut die `.exe`, erzeugt die `latest.json` und laedt beides als Release
+`vX.Y.Z` hoch. Bestehende Nutzer bekommen das Update beim naechsten Start automatisch
+angeboten. (Voraussetzung: `gh` installiert und `gh auth login` erledigt.)
+
 ## Branding
 
 Name und Icon sind aktuell ein Platzhalter (`PPCoach`, generiertes Farbverlauf-Logo
