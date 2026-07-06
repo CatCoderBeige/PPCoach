@@ -679,11 +679,16 @@ class PPCoachApp(ctk.CTk):
     def _make_dimmed_backdrop(self):
         """Takes a snapshot of the current window and only dims it slightly. This
         keeps the background behind the popup visible (instead of fully black).
+
+        Returns a plain Tk PhotoImage (NOT a CTkImage) on purpose: CTkImage re-applies
+        the widget/DPI scaling factor, which on scaled displays (e.g. 150%) blew the
+        snapshot up so the background looked zoomed in. A Tk PhotoImage is drawn 1:1
+        with the grabbed pixels, so it lines up exactly with the real window.
         Falls back tolerantly to None on any error."""
         if Image is None:
             return None
         try:
-            from PIL import ImageGrab
+            from PIL import ImageGrab, ImageTk
         except Exception:
             return None
         try:
@@ -695,7 +700,7 @@ class PPCoachApp(ctk.CTk):
             shot = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert("RGB")
             dark = Image.new("RGB", shot.size, (8, 9, 14))
             dimmed = Image.blend(shot, dark, 0.4)  # only dim a little
-            return ctk.CTkImage(light_image=dimmed, dark_image=dimmed, size=(w, h))
+            return ImageTk.PhotoImage(dimmed)
         except Exception:
             return None
 
@@ -712,8 +717,9 @@ class PPCoachApp(ctk.CTk):
         self._scrim_bg = backdrop
 
         if backdrop is not None:
-            bg = ctk.CTkLabel(scrim, text="", image=backdrop)
-            bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+            # Plain tk.Label so the snapshot is drawn 1:1 (no CTk image scaling).
+            bg = tk.Label(scrim, image=backdrop, bd=0, highlightthickness=0)
+            bg.place(x=0, y=0)
             if closable:
                 bg.bind("<Button-1>", lambda _e: self._close_overlay())
 
