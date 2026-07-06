@@ -6,6 +6,7 @@ Alles CustomTkinter/Tkinter, damit die App weiterhin als eine einzelne .exe
 gebaut werden kann.
 """
 
+import math
 import tkinter as tk
 
 import customtkinter as ctk
@@ -153,14 +154,18 @@ class GradientBanner(tk.Canvas):
 
     def __init__(self, master, on_click, text="✨  AI Coach  –  coming soon",
                  height=64, colors=None, badge=None, cta="ℹ  Learn more  ›",
-                 **kwargs):
+                 round_top=0, corner_color=BG_WINDOW, **kwargs):
         super().__init__(master, height=height, highlightthickness=0, bd=0,
-                         bg=BG_WINDOW, **kwargs)
+                         bg=corner_color, **kwargs)
         self._on_click = on_click
         self._text = text
         self._badge = badge
         self._cta = cta
         self._start, self._end = colors if colors else (GRADIENT_START, GRADIENT_END)
+        # Als Popup-Kopf sollen die oberen Ecken zur runden Karte passen; als
+        # freistehender Banner (round_top=0) bleibt er randlos eckig.
+        self._round_top = round_top
+        self._corner_color = corner_color
         self._hover = False
         self.configure(cursor="hand2")
         self.bind("<Configure>", self._draw)
@@ -194,6 +199,9 @@ class GradientBanner(tk.Canvas):
             x0 = width * i / steps
             x1 = width * (i + 1) / steps
             self.create_rectangle(x0, 0, x1 + 1, height, fill=color, outline=color)
+
+        if self._round_top > 0:
+            self._cut_top_corners(width)
 
         text_x = 22
         if self._badge:
@@ -230,6 +238,26 @@ class GradientBanner(tk.Canvas):
                 fill="white",
                 anchor="e",
             )
+
+    def _cut_top_corners(self, width):
+        """Malt die kleinen Zwickel ausserhalb der oberen Rundungen in der
+        Kartenfarbe uebermalt - so wirken die oberen Ecken genauso abgerundet
+        wie die untere Karte (tk-Canvas kann selbst keine runden Ecken)."""
+        r = self._round_top
+        cc = self._corner_color
+        seg = 6
+
+        left = [(0, 0), (r, 0)]
+        for i in range(seg + 1):
+            ang = math.radians(270 - 90 * i / seg)
+            left.append((r + r * math.cos(ang), r + r * math.sin(ang)))
+        self.create_polygon(left, fill=cc, outline=cc)
+
+        right = [(width, 0), (width - r, 0)]
+        for i in range(seg + 1):
+            ang = math.radians(270 + 90 * i / seg)
+            right.append((width - r + r * math.cos(ang), r + r * math.sin(ang)))
+        self.create_polygon(right, fill=cc, outline=cc)
 
 
 class StatCard(ctk.CTkFrame):

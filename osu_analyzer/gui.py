@@ -17,8 +17,8 @@ import customtkinter as ctk
 import requests
 
 from . import theme, updater
-from .config import (APP_NAME, VERSION, ConfigError, get_last_username,
-                     load_settings, save_settings, set_last_username)
+from .config import (APP_NAME, VERSION, ConfigError, load_settings,
+                     save_settings, set_last_username)
 from .osu_api import OsuApiClient, OsuApiError
 from .rules_engine import Finding, generate_report
 
@@ -35,32 +35,26 @@ AVATAR_SIZE = 96
 CONTENT_WRAP = 600  # Textumbruch fuer volle Breite (z.B. Fehler-Karte)
 TIP_WRAP = 270      # Textumbruch in den zweispaltigen Tipp-Karten
 
-# Statisches Demo-Profil, das beim Start gezeigt wird (kein API-Call noetig).
+# Statisches Demo-Profil, das beim Start als greyed-out Vorschau gezeigt wird
+# (kein API-Call, bewusst KEINE echten Werte - nur Platzhalter, damit klar ist,
+# dass hier noch nichts analysiert wurde).
 EXAMPLE_STATS = {
-    "username": "mrekk",
-    "country_code": "AU",
+    "username": "Example Player",
+    "country_code": "",
     "statistics": {
-        "global_rank": 1,
-        "country_rank": 1,
-        "pp": 21500,
-        "hit_accuracy": 99.06,
-        "level": {"current": 105},
-        "play_time": 5_400_000,  # Sekunden (~1500 h)
+        "global_rank": None,
+        "country_rank": None,
+        "pp": None,
+        "hit_accuracy": None,
+        "level": {"current": None},
+        "play_time": None,
     },
 }
 EXAMPLE_FINDINGS = [
-    Finding("Accuracy drops on harder maps",
-            "Accuracy falls by about 1.8% as star rating increases – practice maps just "
-            "above the comfort zone.", "accuracy"),
-    Finding("Untapped PP potential from mods",
-            "HD/HR barely show up in the top scores – farming known maps with them is "
-            "comparatively easy PP.", "mods"),
-    Finding("Strong consistency",
-            "Almost all top scores are S or better – solid miss control across full maps.",
-            "consistency"),
-    Finding("Next steps for this PP level",
-            "Fine-tune with targeted maps for known weaknesses and smart mod combinations.",
-            "strategy"),
+    Finding("Where you lose PP",
+            "See exactly which skills are holding your performance back.", "accuracy"),
+    Finding("How to improve",
+            "Get concrete, actionable tips tailored to how you play.", "strategy"),
 ]
 
 
@@ -171,6 +165,7 @@ class PPCoachApp(ctk.CTk):
         self._client = OsuApiClient()
         self._update_info = None
         self._overlay = None
+        self._scrim_bg = None
         self._build_layout()
         self._show_example_profile()  # beim Start ein Beispiel-Profil zeigen
         self._check_updates_async()  # still im Hintergrund, stoert nie
@@ -223,35 +218,38 @@ class PPCoachApp(ctk.CTk):
         )
         self.ai_banner.pack(fill="x", pady=(16, 16))
 
-        # Search row - compact (usernames are short), left-aligned
+        # Search bar - centered & prominent: this is the single primary action,
+        # so it sits in the middle and stands out with an accent border.
         input_frame = ctk.CTkFrame(outer, fg_color="transparent")
         input_frame.pack(fill="x")
 
+        search_wrap = ctk.CTkFrame(input_frame, fg_color="transparent")
+        search_wrap.pack()  # kein fill -> horizontal zentriert
+
         self.username_entry = ctk.CTkEntry(
-            input_frame, placeholder_text="Enter osu! username …",
-            width=280, height=44, font=theme.font(14),
+            search_wrap, placeholder_text="🔍   Enter your osu! username …",
+            width=320, height=50, font=theme.font(15),
             corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BG_INPUT, border_color=theme.BORDER, border_width=1,
+            fg_color=theme.BG_INPUT, border_color=theme.ACCENT, border_width=2,
         )
         self.username_entry.pack(side="left", padx=(0, 10))
         self.username_entry.bind("<Return>", lambda _e: self._start_analysis())
-        # Prefill with the last used name, or "mrekk" as an example
-        self.username_entry.insert(0, get_last_username() or "mrekk")
+        # Bewusst KEIN Prefill: das Feld startet leer (nur Placeholder).
 
         self.analyze_button = ctk.CTkButton(
-            input_frame, text="Analyze", command=self._start_analysis,
-            height=44, width=140, font=theme.font(14, "bold"),
+            search_wrap, text="Analyze", command=self._start_analysis,
+            height=50, width=150, font=theme.font(15, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
             text_color=theme.TEXT_ON_ACCENT,
         )
         self.analyze_button.pack(side="left")
 
-        # Status-Zeile
+        # Status-Zeile (zentriert unter der Suchleiste)
         self.status_label = ctk.CTkLabel(
             outer, text="", font=theme.font(12), text_color=theme.TEXT_MUTED,
         )
-        self.status_label.pack(anchor="w", pady=(10, 6))
+        self.status_label.pack(pady=(12, 6))
 
         # Scrollbarer Content-Bereich (Empty-State bzw. Ergebnis-Karten)
         self.content = ctk.CTkScrollableFrame(
@@ -305,9 +303,10 @@ class PPCoachApp(ctk.CTk):
         ).grid(row=3, column=0, pady=(0, 30), padx=20)
 
     def _show_example_profile(self):
-        """Zeigt beim Start ein statisches Demo-Profil (mrekk), damit man sofort
-        sieht, wie eine Analyse aussieht."""
-        self._render_results("mrekk", EXAMPLE_STATS, EXAMPLE_FINDINGS,
+        """Zeigt beim Start eine bewusst simple, ausgegraute Vorschau (Platzhalter
+        statt echter Werte), damit man den Aufbau einer Analyse sieht - ohne dass
+        es wie echte Daten wirkt."""
+        self._render_results("Example Player", EXAMPLE_STATS, EXAMPLE_FINDINGS,
                              avatar_image=None, flag_image=None, example=True)
 
     def _show_error(self, message: str):
@@ -323,7 +322,12 @@ class PPCoachApp(ctk.CTk):
         statistics = stats.get("statistics", {})
         row = 0
 
-        # Beispiel-Modus: deutlich sichtbarer Hinweis, dass das nur ein Demo-Profil ist.
+        # Im Beispiel-Modus ist alles gedaempft: gedaempfte Farben signalisieren,
+        # dass es sich um Platzhalter und nicht um echte Werte handelt.
+        primary = theme.TEXT_MUTED if example else theme.TEXT_PRIMARY
+        accent = theme.TEXT_MUTED if example else theme.ACCENT
+
+        # Beispiel-Modus: deutlich sichtbarer Hinweis, dass das nur eine Vorschau ist.
         if example:
             note = ctk.CTkFrame(self.content, fg_color=theme.BG_CARD,
                                 corner_radius=theme.RADIUS_CARD)
@@ -331,13 +335,13 @@ class PPCoachApp(ctk.CTk):
             note.grid_columnconfigure(1, weight=1)
             ctk.CTkLabel(
                 note, text="EXAMPLE", font=theme.font(11, "bold"),
-                text_color=theme.POSITIVE_TEXT, fg_color=theme.POSITIVE,
+                text_color=theme.TEXT_PRIMARY, fg_color=theme.BORDER,
                 corner_radius=6, padx=8, pady=2,
             ).grid(row=0, column=0, padx=(14, 10), pady=12)
             ctk.CTkLabel(
                 note,
-                text="This is a sample profile. Enter your own osu! username above and "
-                     "click “Analyze”.",
+                text="Preview with placeholder values. Enter your osu! username above "
+                     "to see your real analysis.",
                 font=theme.font(12), text_color=theme.TEXT_MUTED, anchor="w",
                 justify="left",
             ).grid(row=0, column=1, sticky="w", padx=(0, 14), pady=12)
@@ -349,23 +353,25 @@ class PPCoachApp(ctk.CTk):
         hero.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(4, 12))
         hero.grid_columnconfigure(1, weight=1)
 
-        self._build_avatar(hero, username, avatar_image)
+        self._build_avatar(hero, username, avatar_image, muted=example)
 
         info = ctk.CTkFrame(hero, fg_color="transparent")
         info.grid(row=0, column=1, sticky="w", padx=(4, 18), pady=18)
         ctk.CTkLabel(
             info, text=stats.get("username", username), font=theme.font(24, "bold"),
-            text_color=theme.TEXT_PRIMARY, anchor="w",
+            text_color=primary, anchor="w",
         ).pack(anchor="w")
 
         country = stats.get("country_code", "")
         rankrow = ctk.CTkFrame(info, fg_color="transparent")
         rankrow.pack(anchor="w", pady=(6, 0))
+        global_text = ("Global —" if example
+                       else f"Global {theme.fmt_rank(statistics.get('global_rank'))}")
         ctk.CTkLabel(
-            rankrow, text=f"Global {theme.fmt_rank(statistics.get('global_rank'))}",
-            font=theme.font(13, "bold"), text_color=theme.ACCENT,
+            rankrow, text=global_text,
+            font=theme.font(13, "bold"), text_color=accent,
         ).pack(side="left")
-        if statistics.get("country_rank"):
+        if not example and statistics.get("country_rank"):
             if flag_image is not None:
                 ctk.CTkLabel(rankrow, text="", image=flag_image).pack(
                     side="left", padx=(14, 5))
@@ -384,19 +390,28 @@ class PPCoachApp(ctk.CTk):
         level = statistics.get("level", {}) or {}
         stat_row = ctk.CTkFrame(self.content, fg_color="transparent")
         stat_row.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, 12))
-        # Nur der Kern-Wert (PP) traegt die Markenfarbe als Fokuspunkt; die uebrigen
-        # Werte bleiben neutral-hell -> ruhig und uebersichtlich.
-        stats_data = [
-            (theme.fmt_pp(statistics.get("pp")), "Performance", theme.ACCENT),
-            (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Accuracy",
-             theme.TEXT_PRIMARY),
-            (str(level.get("current", "?")), "Level", theme.TEXT_PRIMARY),
-            (theme.fmt_hours(statistics.get("play_time")), "Playtime",
-             theme.TEXT_PRIMARY),
-        ]
-        for col, (value, label, accent) in enumerate(stats_data):
+        if example:
+            # Platzhalter (keine echten Werte), alles gedaempft.
+            stats_data = [
+                ("—", "Performance", accent),
+                ("—", "Accuracy", primary),
+                ("—", "Level", primary),
+                ("—", "Playtime", primary),
+            ]
+        else:
+            # Nur der Kern-Wert (PP) traegt die Markenfarbe als Fokuspunkt; die
+            # uebrigen Werte bleiben neutral-hell -> ruhig und uebersichtlich.
+            stats_data = [
+                (theme.fmt_pp(statistics.get("pp")), "Performance", theme.ACCENT),
+                (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Accuracy",
+                 theme.TEXT_PRIMARY),
+                (str(level.get("current", "?")), "Level", theme.TEXT_PRIMARY),
+                (theme.fmt_hours(statistics.get("play_time")), "Playtime",
+                 theme.TEXT_PRIMARY),
+            ]
+        for col, (value, label, card_accent) in enumerate(stats_data):
             stat_row.grid_columnconfigure(col, weight=1, uniform="stat")
-            card = theme.StatCard(stat_row, value=value, label=label, accent=accent)
+            card = theme.StatCard(stat_row, value=value, label=label, accent=card_accent)
             padx = (0, 8) if col == 0 else (8, 8) if col < 3 else (8, 0)
             card.grid(row=0, column=col, sticky="ew", padx=padx)
         row += 1
@@ -409,18 +424,21 @@ class PPCoachApp(ctk.CTk):
         row += 1
 
         for idx, finding in enumerate(findings):
-            icon, accent = theme.category_style(finding.category)
+            icon, cat_accent = theme.category_style(finding.category)
+            if example:
+                cat_accent = theme.TEXT_MUTED  # gedaempft, da nur Vorschau
             col = idx % 2
             padx = (0, 6) if col == 0 else (6, 0)
             theme.TipCard(
                 self.content, title=finding.title, body=finding.text,
-                accent=accent, icon=icon, wraplength=TIP_WRAP,
+                accent=cat_accent, icon=icon, wraplength=TIP_WRAP,
             ).grid(row=row + idx // 2, column=col, sticky="new", padx=padx,
                    pady=(0, 12))
 
-    def _build_avatar(self, master, username, avatar_image):
-        """Setzt links im Hero entweder das runde Avatar-Bild oder einen
-        Fallback-Kreis mit der Initiale des Nutzernamens."""
+    def _build_avatar(self, master, username, avatar_image, muted=False):
+        """Setzt links im Hero das runde Avatar-Bild, oder einen Fallback:
+        im Normalfall ein Kreis mit der Initiale, im (ausgegrauten) Beispiel-Modus
+        eine neutrale, gedaempfte Platzhalter-Silhouette."""
         if avatar_image is not None:
             ctk.CTkLabel(master, text="", image=avatar_image).grid(
                 row=0, column=0, padx=(18, 8), pady=18)
@@ -430,6 +448,17 @@ class PPCoachApp(ctk.CTk):
         canvas = tk.Canvas(master, width=size, height=size, highlightthickness=0,
                            bd=0, bg=theme.BG_CARD_ALT)
         canvas.grid(row=0, column=0, padx=(18, 8), pady=18)
+
+        if muted:
+            # Neutraler Platzhalter (kein echtes Profil): gedaempfte Silhouette.
+            canvas.create_oval(2, 2, size - 2, size - 2, fill=theme.BG_CARD,
+                               outline=theme.BORDER, width=2)
+            canvas.create_oval(size * 0.34, size * 0.24, size * 0.66, size * 0.56,
+                               fill=theme.TEXT_MUTED, outline="")
+            canvas.create_arc(size * 0.20, size * 0.60, size * 0.80, size * 1.04,
+                              start=0, extent=180, fill=theme.TEXT_MUTED, outline="")
+            return
+
         canvas.create_oval(0, 0, size, size, fill=theme.ACCENT, outline="")
         initial = (username[:1] or "?").upper()
         canvas.create_text(size / 2, size / 2, text=initial,
@@ -522,6 +551,7 @@ class PPCoachApp(ctk.CTk):
             card, on_click=lambda: None,
             text=f"⬆  Update {info.version}", height=70, cta="",
             colors=(theme.UPDATE_GRADIENT_START, theme.UPDATE_GRADIENT_END),
+            round_top=theme.RADIUS_CARD, corner_color=theme.BG_WINDOW,
         )
         header.configure(cursor="arrow")
         header.unbind("<Button-1>")
@@ -604,15 +634,51 @@ class PPCoachApp(ctk.CTk):
         if overlay is not None and overlay.winfo_exists():
             overlay.destroy()
         self._overlay = None
+        self._scrim_bg = None
         self.unbind("<Escape>")
 
+    def _make_dimmed_backdrop(self):
+        """Nimmt einen Schnappschuss des aktuellen Fensters und dunkelt ihn nur
+        leicht ab. So bleibt der Hintergrund hinter dem Popup sichtbar (statt
+        komplett schwarz). Faellt bei jedem Fehler tolerant auf None zurueck."""
+        if Image is None:
+            return None
+        try:
+            from PIL import ImageGrab
+        except Exception:
+            return None
+        try:
+            self.update_idletasks()
+            x, y = self.winfo_rootx(), self.winfo_rooty()
+            w, h = self.winfo_width(), self.winfo_height()
+            if w <= 1 or h <= 1:
+                return None
+            shot = ImageGrab.grab(bbox=(x, y, x + w, y + h)).convert("RGB")
+            dark = Image.new("RGB", shot.size, (8, 9, 14))
+            dimmed = Image.blend(shot, dark, 0.4)  # nur ein bisschen abdunkeln
+            return ctk.CTkImage(light_image=dimmed, dark_image=dimmed, size=(w, h))
+        except Exception:
+            return None
+
     def _open_overlay(self, width, height, closable=True):
-        """Baut ein modales In-App-Overlay (dunkler Scrim + zentrierte Karte) und
-        liefert die Karte zurueck. Oeffnet KEIN zweites Fenster."""
+        """Baut ein modales In-App-Overlay (leicht abgedunkelter Hintergrund +
+        zentrierte Karte) und liefert die Karte zurueck. Oeffnet KEIN zweites
+        Fenster."""
         self._close_overlay()
-        scrim = ctk.CTkFrame(self, fg_color="#05060A", corner_radius=0)
+        # Schnappschuss VOR dem Scrim aufnehmen, damit der echte Inhalt drin ist.
+        backdrop = self._make_dimmed_backdrop()
+
+        scrim = ctk.CTkFrame(self, fg_color=theme.BG_WINDOW, corner_radius=0)
         scrim.place(relx=0, rely=0, relwidth=1, relheight=1)
         self._overlay = scrim
+        self._scrim_bg = backdrop
+
+        if backdrop is not None:
+            bg = ctk.CTkLabel(scrim, text="", image=backdrop)
+            bg.place(relx=0, rely=0, relwidth=1, relheight=1)
+            if closable:
+                bg.bind("<Button-1>", lambda _e: self._close_overlay())
+
         if closable:
             scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # ausserhalb = zu
             self.bind("<Escape>", lambda _e: self._close_overlay())
@@ -629,6 +695,7 @@ class PPCoachApp(ctk.CTk):
         header = theme.GradientBanner(
             card, on_click=lambda: None, text="✨  AI Coach", height=72, cta="",
             colors=(theme.AI_GRADIENT_START, theme.AI_GRADIENT_END),
+            round_top=theme.RADIUS_CARD, corner_color=theme.BG_WINDOW,
         )
         header.configure(cursor="arrow")
         header.unbind("<Button-1>")
