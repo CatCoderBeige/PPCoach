@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 
 APP_NAME = "PPCoach"
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 # --- Selbst-Update ---------------------------------------------------------
 # Die App liest ihr Update direkt aus der GitHub-Releases-API des Repos:

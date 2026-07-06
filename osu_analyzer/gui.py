@@ -170,6 +170,12 @@ class PPCoachApp(ctk.CTk):
         self._show_example_profile()  # beim Start ein Beispiel-Profil zeigen
         self._check_updates_async()  # still im Hintergrund, stoert nie
 
+        # Titelleiste an das App-Design angleichen (dunkel, gleiche Farbe wie das
+        # Fenster) statt der hellen System-Standardleiste. Direkt + nochmal knapp
+        # verzoegert, da manche Windows-Builds erst nach dem ersten Paint neu zeichnen.
+        self._style_titlebar()
+        self.after(60, self._style_titlebar)
+
     def _set_icon(self):
         icon_path = _asset_path("icon.ico")
         if icon_path.exists():
@@ -177,6 +183,36 @@ class PPCoachApp(ctk.CTk):
                 self.iconbitmap(str(icon_path))
             except tk.TclError:
                 pass
+
+    def _style_titlebar(self):
+        """Faerbt Titelleiste, Fensterrahmen und Titeltext passend zum App-Design.
+
+        Nutzt die DWM-API (Windows 11, Build 22000+). Auf aelteren Systemen oder
+        Nicht-Windows schlaegt es still fehl und die Standardleiste bleibt.
+        """
+        if sys.platform != "win32":
+            return
+        try:
+            import ctypes
+
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id())
+            dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
+
+            def _set(attr: int, value: int) -> None:
+                val = ctypes.c_int(value)
+                dwm(hwnd, attr, ctypes.byref(val), ctypes.sizeof(val))
+
+            def _colorref(hex_color: str) -> int:
+                h = hex_color.lstrip("#")
+                r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+                return (b << 16) | (g << 8) | r  # COLORREF ist 0x00BBGGRR
+
+            _set(20, 1)                              # dunkler Modus (Icons/Buttons hell)
+            _set(35, _colorref(theme.BG_WINDOW))     # Titelleisten-Hintergrund
+            _set(34, _colorref(theme.BORDER))        # Fensterrahmen
+            _set(36, _colorref(theme.TEXT_PRIMARY))  # Titeltext
+        except Exception:
+            pass
 
     # -- Aufbau -------------------------------------------------------------
     def _build_layout(self):
@@ -194,10 +230,14 @@ class PPCoachApp(ctk.CTk):
             topbar, text="  osu! skill analysis", font=theme.font(13),
             text_color=theme.TEXT_MUTED,
         ).pack(side="left", pady=(10, 0))
-        ctk.CTkLabel(
-            topbar, text="unofficial · not affiliated with osu!",
-            font=theme.font(11), text_color=theme.TEXT_MUTED,
-        ).pack(side="right", pady=(10, 0))
+
+        # Update-Check jetzt OBEN rechts (Launcher-Gefuehl): Version + manueller Check.
+        self.footer_label = ctk.CTkLabel(
+            topbar, text=f"v{VERSION}  ·  check for updates", font=theme.font(11),
+            text_color=theme.TEXT_MUTED, cursor="hand2",
+        )
+        self.footer_label.pack(side="right", pady=(10, 0))
+        self.footer_label.bind("<Button-1>", lambda _e: self._manual_check())
 
         # Update-Button: erst sichtbar, wenn eine neue Version gefunden wurde.
         self.update_button = ctk.CTkButton(
@@ -260,13 +300,12 @@ class PPCoachApp(ctk.CTk):
         self.content.grid_columnconfigure(0, weight=1, uniform="col")
         self.content.grid_columnconfigure(1, weight=1, uniform="col")
 
-        # Footer: Version + manueller Update-Check (Launcher-Gefuehl).
-        self.footer_label = ctk.CTkLabel(
-            outer, text=f"v{VERSION}  ·  check for updates", font=theme.font(11),
-            text_color=theme.TEXT_MUTED, cursor="hand2",
+        # Footer: dezenter rechtlicher Hinweis (jetzt unten statt oben).
+        self.disclaimer_label = ctk.CTkLabel(
+            outer, text="unofficial · not affiliated with osu!",
+            font=theme.font(11), text_color=theme.TEXT_MUTED,
         )
-        self.footer_label.pack(anchor="e", pady=(8, 0))
-        self.footer_label.bind("<Button-1>", lambda _e: self._manual_check())
+        self.disclaimer_label.pack(anchor="e", pady=(8, 0))
 
     # -- Content-Zustaende --------------------------------------------------
     def _clear_content(self):
