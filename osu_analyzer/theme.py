@@ -78,6 +78,10 @@ GRADIENT_END = (255, 106, 166)    # #FF6AA6 osu!-Pink
 AI_GRADIENT_START = (34, 211, 238)   # #22D3EE Cyan
 AI_GRADIENT_END = (124, 92, 255)     # #7C5CFF Violett
 
+# Ruhiger Gruen->Cyan-Verlauf fuer den Kopf der Update-Box (Signal: "los/verfuegbar").
+UPDATE_GRADIENT_START = (70, 179, 126)   # #46B37E Gruen
+UPDATE_GRADIENT_END = (34, 211, 238)     # #22D3EE Cyan
+
 # Ecken-Radien
 RADIUS_CARD = 16
 RADIUS_BUTTON = 12

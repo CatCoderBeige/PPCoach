@@ -6,6 +6,8 @@ Avatar + Stat-Karten + Tipp-Karten) statt in einer einzelnen Text-Box.
 """
 
 import io
+import os
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -15,7 +17,8 @@ import customtkinter as ctk
 import requests
 
 from . import theme, updater
-from .config import APP_NAME, VERSION, ConfigError, get_last_username, set_last_username
+from .config import (APP_NAME, VERSION, ConfigError, get_last_username,
+                     load_settings, save_settings, set_last_username)
 from .osu_api import OsuApiClient, OsuApiError
 from .rules_engine import Finding, generate_report
 
@@ -110,14 +113,60 @@ def _load_flag(country_code: str):
         return None
 
 
+def _set_app_user_model_id(appid: str = "CatCoderBeige.PPCoach") -> None:
+    """Meldet uns bei Windows als eigenstaendige App an (eigenes Taskleisten-Icon,
+    saubere Gruppierung). Fehler werden ignoriert (z.B. auf Nicht-Windows)."""
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(appid)
+    except Exception:
+        pass
+
+
+def _ensure_desktop_shortcut() -> None:
+    """Legt beim ersten Start (nur in der gebauten .exe) eine Desktop-Verknuepfung
+    mit App-Icon an und merkt sich das in den Settings - ein spaeter vom Nutzer
+    geloeschtes Icon wird also nicht ungefragt neu erstellt."""
+    if not updater.is_frozen():
+        return
+    try:
+        settings = load_settings()
+        if settings.get("desktop_shortcut_created"):
+            return
+        desktop = Path(os.path.expanduser("~")) / "Desktop"
+        if not desktop.exists():
+            return
+        lnk = desktop / f"{APP_NAME}.lnk"
+        exe = sys.executable
+        workdir = os.path.dirname(exe)
+        ps = (
+            f"$s=(New-Object -ComObject WScript.Shell).CreateShortcut('{lnk}');"
+            f"$s.TargetPath='{exe}';$s.IconLocation='{exe},0';"
+            f"$s.WorkingDirectory='{workdir}';$s.Save()"
+        )
+        subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+            creationflags=0x08000000,  # CREATE_NO_WINDOW
+            check=False,
+        )
+        settings["desktop_shortcut_created"] = True
+        save_settings(settings)
+    except Exception:
+        pass
+
+
 class PPCoachApp(ctk.CTk):
     def __init__(self):
+        _set_app_user_model_id()  # als eigene App in der Taskleiste fuehren
         super().__init__()
         self.title(f"{APP_NAME} v{VERSION}")
         self.geometry("800x780")
         self.minsize(680, 620)
         self.configure(fg_color=theme.BG_WINDOW)
         self._set_icon()
+
+        updater.cleanup_old()      # Reste eines vorherigen Updates entfernen
+        _ensure_desktop_shortcut()  # einmalig Desktop-Verknuepfung mit Icon anlegen
 
         self._client = OsuApiClient()
         self._update_info = None
@@ -461,26 +510,24 @@ class PPCoachApp(ctk.CTk):
             text=f"v{VERSION}  ·  version {info.version} available")
 
     def _open_update_dialog(self):
+        """Zeigt die Update-Details als In-App-Box (kein zweites Fenster). Ein Klick
+        auf 'Update now' laedt herunter, installiert und startet automatisch neu."""
         info = self._update_info
         if info is None:
             return
 
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("Update available")
-        dialog.geometry("460x400")
-        dialog.resizable(False, False)
-        dialog.configure(fg_color=theme.BG_WINDOW)
-        dialog.transient(self)
+        card = self._open_overlay(480, 470)
 
         header = theme.GradientBanner(
-            dialog, on_click=lambda: None,
-            text=f"⬆  Update {info.version} available", height=70,
+            card, on_click=lambda: None,
+            text=f"⬆  Update {info.version}", height=70, cta="",
+            colors=(theme.UPDATE_GRADIENT_START, theme.UPDATE_GRADIENT_END),
         )
         header.configure(cursor="arrow")
         header.unbind("<Button-1>")
         header.pack(fill="x")
 
-        body = ctk.CTkFrame(dialog, fg_color="transparent")
+        body = ctk.CTkFrame(card, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=24, pady=(16, 20))
 
         ctk.CTkLabel(
@@ -489,7 +536,7 @@ class PPCoachApp(ctk.CTk):
         ).pack(anchor="w")
 
         notes_box = ctk.CTkTextbox(
-            body, font=theme.font(12), fg_color=theme.BG_CARD,
+            body, font=theme.font(12), fg_color=theme.BG_CARD_ALT,
             text_color=theme.TEXT_MUTED, corner_radius=theme.RADIUS_CARD,
             wrap="word", height=150,
         )
@@ -506,9 +553,9 @@ class PPCoachApp(ctk.CTk):
         button_row.pack(fill="x", pady=(4, 0))
 
         later_btn = ctk.CTkButton(
-            button_row, text="Later", command=dialog.destroy, height=40, width=110,
+            button_row, text="Later", command=self._close_overlay, height=40, width=110,
             corner_radius=theme.RADIUS_BUTTON, font=theme.font(13),
-            fg_color=theme.BG_CARD, hover_color=theme.BG_CARD_ALT,
+            fg_color=theme.BG_CARD_ALT, hover_color=theme.BORDER,
         )
         later_btn.pack(side="left")
 
@@ -546,15 +593,12 @@ class PPCoachApp(ctk.CTk):
 
         update_btn.configure(command=do_update)
 
-        dialog.update_idletasks()
-        dialog.after(10, dialog.grab_set)
-
     def _update_failed(self, update_btn, later_btn, status, exc):
         update_btn.configure(state="normal")
         later_btn.configure(state="normal")
         status.configure(text=f"Update failed: {exc}")
 
-    # -- AI-Info-Popup (In-App-Overlay, kein separates Fenster) -------------
+    # -- In-App-Overlays (kein separates Fenster) ---------------------------
     def _close_overlay(self):
         overlay = getattr(self, "_overlay", None)
         if overlay is not None and overlay.winfo_exists():
@@ -562,21 +606,24 @@ class PPCoachApp(ctk.CTk):
         self._overlay = None
         self.unbind("<Escape>")
 
-    def _show_ai_teaser(self):
+    def _open_overlay(self, width, height, closable=True):
+        """Baut ein modales In-App-Overlay (dunkler Scrim + zentrierte Karte) und
+        liefert die Karte zurueck. Oeffnet KEIN zweites Fenster."""
         self._close_overlay()
-
-        # Scrim: dunkler Vollflaechen-Layer ueber der ganzen App -> wirkt als
-        # In-App-Popup (modaler Look), oeffnet KEIN zweites Fenster.
         scrim = ctk.CTkFrame(self, fg_color="#05060A", corner_radius=0)
         scrim.place(relx=0, rely=0, relwidth=1, relheight=1)
-        scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # ausserhalb = zu
         self._overlay = scrim
-        self.bind("<Escape>", lambda _e: self._close_overlay())
-
+        if closable:
+            scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # ausserhalb = zu
+            self.bind("<Escape>", lambda _e: self._close_overlay())
         card = ctk.CTkFrame(scrim, fg_color=theme.BG_CARD,
-                            corner_radius=theme.RADIUS_CARD, width=480, height=510)
+                            corner_radius=theme.RADIUS_CARD, width=width, height=height)
         card.place(relx=0.5, rely=0.5, anchor="center")
         card.pack_propagate(False)
+        return card
+
+    def _show_ai_teaser(self):
+        card = self._open_overlay(480, 510)
 
         # Gradient-Kopf in der gleichen auffaelligen AI-Werbefarbe wie der Banner
         header = theme.GradientBanner(

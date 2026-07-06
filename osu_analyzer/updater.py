@@ -8,13 +8,17 @@ die neue ``.exe`` herunterladen, die laufende Datei ersetzen und sich neu starte
 Der eigentliche Austausch funktioniert nur in der gebauten ``.exe`` (``sys.frozen``).
 Im Python-Dev-Modus gibt es keine Ziel-.exe; dann wird der Austausch uebersprungen.
 
-Windows-Besonderheit: Eine laufende ``.exe`` kann sich nicht selbst ueberschreiben.
-Deshalb schreibt ``apply_update_and_restart`` ein winziges Batch-Skript, das wartet,
-bis dieser Prozess beendet ist, die Datei ersetzt, die App neu startet und sich
-anschliessend selbst loescht.
+Windows-Besonderheit: Eine laufende ``.exe`` kann ihren INHALT nicht selbst
+ueberschreiben - aber sie kann UMBENANNT werden, waehrend sie laeuft. Genau das
+nutzt ``apply_update_and_restart``: die laufende Exe wird zur Seite umbenannt
+(``.old``), die neue Exe an den Originalpfad geschrieben, die neue Version gestartet
+und der Prozess beendet. Beim naechsten Start wird die ``.old`` aufgeraeumt. Diese
+Technik ist deutlich robuster als der fruehere "warten + ueberschreiben"-Ansatz
+(keine Race Condition, kein Batch, das die Datei sperren koennte).
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -25,12 +29,40 @@ import requests
 
 from .config import UPDATE_API_URL, VERSION
 
-# Windows-Prozess-Flags, damit der Update-Helfer unser Beenden ueberlebt.
+# Windows-Prozess-Flags, damit der neu gestartete Prozess unser Beenden ueberlebt.
 _DETACHED_PROCESS = 0x00000008
 _CREATE_NEW_PROCESS_GROUP = 0x00000200
 
 _UPDATE_EXE_NAME = "PPCoach_update.exe"
-_UPDATE_BAT_NAME = "ppcoach_update.bat"
+_LOG_NAME = "ppcoach_update.log"
+
+
+def _log(msg: str) -> None:
+    """Schreibt eine Diagnosezeile nach %TEMP%\\ppcoach_update.log (Fehler ignoriert)."""
+    try:
+        line = f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {msg}\n"
+        with open(os.path.join(tempfile.gettempdir(), _LOG_NAME), "a",
+                  encoding="utf-8") as fh:
+            fh.write(line)
+    except Exception:
+        pass
+
+
+def cleanup_old() -> None:
+    """Loescht die beim letzten Update zur Seite gelegte ``PPCoach.exe.old``.
+
+    Beim Start aufrufen. Falls die Datei noch gesperrt ist (Vorgaenger-Prozess noch
+    nicht ganz beendet), wird sie beim naechsten Start erneut versucht.
+    """
+    if not is_frozen():
+        return
+    old = sys.executable + ".old"
+    if os.path.exists(old):
+        try:
+            os.remove(old)
+            _log(f"cleanup_old: removed {old}")
+        except OSError:
+            pass
 
 
 @dataclass
@@ -131,45 +163,82 @@ def download_update(info: UpdateInfo, progress_cb=None, timeout: int = 60) -> st
 
     if progress_cb:
         progress_cb(1.0)
+
+    # Sanity-Check: eine echte Windows-.exe beginnt mit "MZ". Verhindert, dass eine
+    # HTML-Fehlerseite o.ae. faelschlich als Programm eingespielt wird.
+    with open(dest, "rb") as fh:
+        magic = fh.read(2)
+    if magic != b"MZ":
+        raise RuntimeError("Downloaded file is not a valid .exe (bad magic bytes).")
+
     return dest
 
 
 def apply_update_and_restart(new_exe: str) -> None:
     """Ersetzt die laufende .exe durch ``new_exe`` und startet neu (Windows).
 
-    Beendet danach sofort den aktuellen Prozess (``os._exit``), damit der Helfer die
-    Datei ersetzen kann. Kehrt im Erfolgsfall NICHT zurueck.
+    Technik: die laufende Exe wird umbenannt (``.old``) - das erlaubt Windows auch
+    fuer ein gerade laufendes Programm -, dann wird die neue Exe an den Originalpfad
+    geschrieben und gestartet. Schlaegt der Austausch fehl, wird zurueckgerollt, damit
+    der Nutzer nie ohne funktionierende Exe dasteht. Beendet den Prozess bei Erfolg.
     """
     if not is_frozen():
         raise RuntimeError(
-            "Selbst-Update ist nur in der gebauten .exe moeglich, nicht im "
-            "Python-Entwicklermodus."
+            "Self-update only works in the built .exe, not in Python dev mode."
         )
 
     current = sys.executable
-    pid = os.getpid()
-    bat_path = os.path.join(tempfile.gettempdir(), _UPDATE_BAT_NAME)
+    old = current + ".old"
+    _log(f"apply: current={current}  new={new_exe}")
 
-    # Warten bis dieser Prozess weg ist, dann Datei tauschen, neu starten, Skript loeschen.
-    # ping statt timeout: robust auch ohne Konsolen-Stdin.
-    script = (
-        "@echo off\r\n"
-        ":waitloop\r\n"
-        f'tasklist /FI "PID eq {pid}" 2>nul | find "{pid}" >nul\r\n'
-        "if not errorlevel 1 (\r\n"
-        "    ping -n 2 127.0.0.1 >nul\r\n"
-        "    goto waitloop\r\n"
-        ")\r\n"
-        f'move /Y "{new_exe}" "{current}" >nul\r\n'
-        f'start "" "{current}"\r\n'
-        'del "%~f0"\r\n'
-    )
-    with open(bat_path, "w", encoding="ascii") as fh:
-        fh.write(script)
+    # Etwaige Reste eines fruehreren Updates entfernen.
+    if os.path.exists(old):
+        try:
+            os.remove(old)
+        except OSError as exc:
+            _log(f"apply: could not remove stale .old: {exc}")
 
-    subprocess.Popen(
-        ["cmd", "/c", bat_path],
-        creationflags=_DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP,
-        close_fds=True,
-    )
+    # 1) Laufende Exe zur Seite umbenennen (waehrend sie laeuft erlaubt).
+    try:
+        os.rename(current, old)
+        _log("apply: renamed current -> .old")
+    except OSError as exc:
+        _log(f"apply: rename failed: {exc}")
+        raise RuntimeError(f"Could not rename the running app: {exc}") from exc
+
+    # 2) Neue Exe an den Originalpfad legen (mit ein paar Retries fuer den Fall, dass
+    #    ein Virenscanner die Datei kurz sperrt).
+    last_err = None
+    for attempt in range(5):
+        try:
+            shutil.move(new_exe, current)
+            _log(f"apply: moved new -> current (attempt {attempt + 1})")
+            last_err = None
+            break
+        except OSError as exc:
+            last_err = exc
+            _log(f"apply: move attempt {attempt + 1} failed: {exc}")
+            time.sleep(0.6)
+
+    if last_err is not None:
+        # Rollback: Originaldatei wiederherstellen, damit die App startbar bleibt.
+        try:
+            os.rename(old, current)
+            _log("apply: rolled back .old -> current")
+        except OSError as exc:
+            _log(f"apply: ROLLBACK FAILED: {exc}")
+        raise RuntimeError(f"Could not install the update: {last_err}")
+
+    # 3) Neue Version starten und beenden. Die .old raeumt der neue Prozess beim
+    #    Start via cleanup_old() auf.
+    try:
+        subprocess.Popen(
+            [current],
+            creationflags=_DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP,
+            close_fds=True,
+            cwd=os.path.dirname(current) or None,
+        )
+        _log("apply: relaunched new version, exiting")
+    except OSError as exc:
+        _log(f"apply: relaunch failed: {exc}")
     os._exit(0)
