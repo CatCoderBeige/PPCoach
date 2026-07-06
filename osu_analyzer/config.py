@@ -16,30 +16,20 @@ import os
 from pathlib import Path
 
 APP_NAME = "PPCoach"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 # --- Selbst-Update ---------------------------------------------------------
-# URL zu einer kleinen JSON-Datei, in der die neueste Version + Download-Link steht.
-# Die App fragt sie beim Start ab; ist eine neuere Version verfuegbar, kann sie sich
-# selbst herunterladen, austauschen und neu starten (siehe updater.py).
+# Die App liest ihr Update direkt aus der GitHub-Releases-API des Repos:
+# das jeweils NEUESTE Release liefert tag_name (= Version), body (= Changelog)
+# und das .exe-Asset (= Download). Anders als eine statische latest.json wird die
+# API nicht aggressiv vom CDN gecacht - so wird ein neues Release zuverlaessig und
+# sofort erkannt (kein "immer keins verfuegbar" mehr).
 #
-# Erwartetes JSON-Format:
-#   {
-#     "version": "1.1.0",
-#     "url": "https://.../PPCoach.exe",
-#     "notes": "Was ist neu ..."   (optional)
-#   }
-#
-# Hosting-Beispiele fuer diese Datei + die .exe:
-#   - GitHub Releases / raw:  https://github.com/<user>/<repo>/releases/latest/download/latest.json
-#   - eigener Webserver:      https://deine-seite.de/ppcoach/latest.json
-#   - Cloud-Speicher mit Direktlink
+# Beim Start (und bei jedem manuellen Klick) wird geprueft; ist eine neuere Version
+# da, kann die App sich selbst herunterladen, austauschen und neu starten (updater.py).
 #
 # Solange dies leer ("") ist, bleibt die Update-Pruefung still deaktiviert.
-# Zeigt auf die latest.json des jeweils neuesten GitHub-Releases (immer aktuell).
-UPDATE_MANIFEST_URL = (
-    "https://github.com/CatCoderBeige/PPCoach/releases/latest/download/latest.json"
-)
+UPDATE_API_URL = "https://api.github.com/repos/CatCoderBeige/PPCoach/releases/latest"
 
 # Speicherort fuer persistierte Nutzereinstellungen (z.B. zuletzt genutzter Username)
 SETTINGS_DIR = Path(os.getenv("APPDATA", Path.home())) / APP_NAME

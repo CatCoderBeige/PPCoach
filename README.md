@@ -41,46 +41,32 @@ Premium-Analyse ist als zukuenftiges Upgrade in Planung (siehe "AI Coach"-Kachel
 ## Automatische Updates (Selbst-Update)
 
 Die App kann sich selbst aktualisieren - der Nutzer muss nie manuell eine neue Datei
-herunterladen. Beim Start prueft sie (still im Hintergrund) eine kleine JSON-Datei mit
-der neuesten Version. Ist eine neue Version verfuegbar, erscheint ein gruener
-"⬆ Update"-Button; ein Klick laedt die neue `.exe`, ersetzt die laufende Datei ueber
-einen kleinen Helfer und startet die App neu.
+herunterladen. Beim Start (und bei jedem manuellen Klick auf den Versions-Hinweis
+unten) fragt sie das **neueste GitHub-Release** ab. Ist eine neuere Version verfuegbar,
+erscheint ein gruener "⬆ Update"-Button; ein Klick laedt die neue `.exe`, ersetzt die
+laufende Datei ueber einen kleinen Helfer und startet die App neu.
 
-**So schaltest du es scharf:**
-
-1. Neue `.exe` bauen (Version in `osu_analyzer/config.py` -> `VERSION` hochzaehlen) und
-   irgendwo oeffentlich erreichbar ablegen (GitHub Releases, eigener Webserver, Cloud).
-2. Eine `latest.json` daneben hosten:
-   ```json
-   {
-     "version": "1.1.0",
-     "url": "https://.../PPCoach.exe",
-     "notes": "Was ist neu ..."
-   }
-   ```
-3. In `osu_analyzer/config.py` die Konstante `UPDATE_MANIFEST_URL` auf die URL dieser
-   `latest.json` setzen und einmal neu bauen. Solange sie leer (`""`) ist, bleibt die
-   Update-Pruefung deaktiviert (keine Fehler, kein Button).
+Die Versions-Info kommt direkt aus der GitHub-Releases-API (`tag_name` = Version,
+`body` = Changelog, `.exe`-Asset = Download) - keine separate `latest.json` noetig, und
+kein CDN-Caching, das ein neues Release "verschluckt".
 
 Der Selbstaustausch funktioniert nur in der gebauten `.exe` (nicht beim Start ueber
-`python main.py`) und ist Windows-spezifisch. Fuers erste echte Release einmal live
-testen: alte Version installieren, `latest.json` auf eine hoehere Version zeigen lassen
-und den Update-Knopf druecken.
+`python main.py`) und ist Windows-spezifisch.
 
 ### Neues Update veroeffentlichen
 
 Die App-Updates liegen als **GitHub Releases** im Repo
-`https://github.com/CatCoderBeige/PPCoach`. `UPDATE_MANIFEST_URL` in `config.py` zeigt
-bereits auf die `latest.json` des jeweils neuesten Releases.
+`https://github.com/CatCoderBeige/PPCoach`. `UPDATE_API_URL` in `config.py` zeigt bereits
+auf die Releases-API dieses Repos.
 
 Ein neues Update ist damit ein Schritt:
 
-1. In `osu_analyzer/config.py` die `VERSION` hochzaehlen (z.B. `1.0.0` -> `1.1.0`).
+1. In `osu_analyzer/config.py` die `VERSION` hochzaehlen (z.B. `1.0.0` -> `1.0.1`).
 2. `python release.py --notes "Was ist neu ..."`
 
-Das Skript baut die `.exe`, erzeugt die `latest.json` und laedt beides als Release
-`vX.Y.Z` hoch. Bestehende Nutzer bekommen das Update beim naechsten Start automatisch
-angeboten. (Voraussetzung: `gh` installiert und `gh auth login` erledigt.)
+Das Skript baut die `.exe` und laedt sie als Release `vX.Y.Z` hoch (die `--notes`
+werden zum Changelog). Bestehende Nutzer bekommen das Update beim naechsten Start
+automatisch angeboten. (Voraussetzung: `gh` installiert und `gh auth login` erledigt.)
 
 ## Branding
 

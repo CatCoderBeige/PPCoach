@@ -72,6 +72,12 @@ def category_style(category: str) -> tuple[str, str]:
 GRADIENT_START = (201, 92, 142)   # #C95C8E gedaempftes Rose
 GRADIENT_END = (255, 106, 166)    # #FF6AA6 osu!-Pink
 
+# Bewusst abweichende, laute "Werbe"-Farbe fuer den AI-Coach-Banner: eine
+# Cyan->Violett-Kombi, die sich klar vom pink/neutralen Rest abhebt. Ad-Charakter -
+# soll auffallen und absichtlich NICHT ganz zum Rest passen.
+AI_GRADIENT_START = (34, 211, 238)   # #22D3EE Cyan
+AI_GRADIENT_END = (124, 92, 255)     # #7C5CFF Violett
+
 # Ecken-Radien
 RADIUS_CARD = 16
 RADIUS_BUTTON = 12
@@ -133,18 +139,24 @@ def fmt_hours(seconds) -> str:
 
 # --- Widgets ---------------------------------------------------------------
 class GradientBanner(tk.Canvas):
-    """Horizontaler Lila->Pink Gradient-Button, der das AI-Feature bewirbt.
+    """Horizontaler Gradient-Button, der das AI-Feature bewirbt.
 
     Rein visuell/Marketing - beim Klick wird der uebergebene Callback aufgerufen
-    (in der App: ein Info-Popup). Hover hellt den Verlauf leicht auf.
+    (in der App: ein Info-Popup). Hover hellt den Verlauf leicht auf. Farben und
+    ein optionaler "Badge" (z.B. NEU) sind konfigurierbar, damit der AI-Banner
+    eine bewusst auffaellige Werbefarbe tragen kann.
     """
 
     def __init__(self, master, on_click, text="✨  AI Coach  –  bald verfügbar",
-                 height=64, **kwargs):
+                 height=64, colors=None, badge=None, cta="ℹ  Mehr erfahren  ›",
+                 **kwargs):
         super().__init__(master, height=height, highlightthickness=0, bd=0,
                          bg=BG_WINDOW, **kwargs)
         self._on_click = on_click
         self._text = text
+        self._badge = badge
+        self._cta = cta
+        self._start, self._end = colors if colors else (GRADIENT_START, GRADIENT_END)
         self._hover = False
         self.configure(cursor="hand2")
         self.bind("<Configure>", self._draw)
@@ -168,8 +180,8 @@ class GradientBanner(tk.Canvas):
             return
 
         boost = 0.12 if self._hover else 0.0
-        start = _lighten(GRADIENT_START, boost)
-        end = _lighten(GRADIENT_END, boost)
+        start = _lighten(self._start, boost)
+        end = _lighten(self._end, boost)
 
         steps = max(width // 2, 60)
         for i in range(steps):
@@ -179,21 +191,41 @@ class GradientBanner(tk.Canvas):
             x1 = width * (i + 1) / steps
             self.create_rectangle(x0, 0, x1 + 1, height, fill=color, outline=color)
 
-        # kleiner "NEU/Premium"-Charakter durch zweizeiligen Text
+        text_x = 22
+        if self._badge:
+            # kleines weisses "NEU"-Pill mit farbigem Text -> Werbe-Charakter
+            badge_font = (FONT_FAMILY, 11, "bold")
+            probe = self.create_text(0, -50, text=self._badge, font=badge_font,
+                                     anchor="nw")
+            bx = self.bbox(probe)
+            self.delete(probe)
+            tw = (bx[2] - bx[0]) if bx else 30
+            th = (bx[3] - bx[1]) if bx else 14
+            pad = 9
+            y0 = height / 2 - th / 2 - 4
+            y1 = height / 2 + th / 2 + 4
+            self.create_rectangle(22, y0, 22 + tw + 2 * pad, y1, fill="white",
+                                  outline="")
+            self.create_text(22 + pad, height / 2 + 1, text=self._badge,
+                             font=badge_font, fill=hex_between(start, end, 0.0),
+                             anchor="w")
+            text_x = 22 + tw + 2 * pad + 14
+
         self.create_text(
-            22, height / 2,
+            text_x, height / 2,
             text=self._text,
             font=(FONT_FAMILY, 16, "bold"),
             fill="white",
             anchor="w",
         )
-        self.create_text(
-            width - 22, height / 2,
-            text="ℹ  Mehr erfahren  ›",
-            font=(FONT_FAMILY, 12, "bold"),
-            fill="white",
-            anchor="e",
-        )
+        if self._cta:
+            self.create_text(
+                width - 22, height / 2,
+                text=self._cta,
+                font=(FONT_FAMILY, 12, "bold"),
+                fill="white",
+                anchor="e",
+            )
 
 
 class StatCard(ctk.CTkFrame):

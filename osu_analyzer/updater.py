@@ -18,11 +18,12 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass
 
 import requests
 
-from .config import UPDATE_MANIFEST_URL, VERSION
+from .config import UPDATE_API_URL, VERSION
 
 # Windows-Prozess-Flags, damit der Update-Helfer unser Beenden ueberlebt.
 _DETACHED_PROCESS = 0x00000008
@@ -65,24 +66,44 @@ def is_newer(remote: str, local: str = VERSION) -> bool:
 
 
 def check_for_update(timeout: int = 8) -> UpdateInfo | None:
-    """Fragt das Manifest ab und liefert UpdateInfo, falls eine neuere Version existiert.
+    """Fragt das neueste GitHub-Release ab und liefert UpdateInfo, falls neuer.
 
-    Ist ``UPDATE_MANIFEST_URL`` leer, wird still None zurueckgegeben (Feature deaktiviert).
-    Wirft bei Netzwerk-/Formatfehlern eine Exception - der Aufrufer soll das tolerant
-    behandeln (ein nicht erreichbarer Update-Server darf die App nie stoeren).
+    Liest tag_name (Version), body (Changelog) und das .exe-Asset (Download) aus der
+    GitHub-Releases-API. No-Cache-Header + eindeutiger Query-Parameter verhindern,
+    dass ein veralteter (gecachter) Stand geliefert wird - so wird ein neues Release
+    bei JEDER Pruefung zuverlaessig erkannt.
+
+    Ist ``UPDATE_API_URL`` leer, wird still None zurueckgegeben. Wirft bei Netzwerk-/
+    Formatfehlern eine Exception - der Aufrufer behandelt das tolerant.
     """
-    if not UPDATE_MANIFEST_URL:
+    if not UPDATE_API_URL:
         return None
 
-    resp = requests.get(UPDATE_MANIFEST_URL, timeout=timeout)
+    resp = requests.get(
+        UPDATE_API_URL,
+        timeout=timeout,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
+        params={"_": int(time.time())},  # Cache-Buster
+    )
     resp.raise_for_status()
     data = resp.json()
 
-    version = str(data["version"])
-    url = str(data["url"])
-    notes = str(data.get("notes", ""))
+    version = str(data.get("tag_name", "")).lstrip("vV")
+    notes = str(data.get("body") or "").strip()
 
-    if is_newer(version):
+    # Download-Link: das erste .exe-Asset des Releases.
+    url = ""
+    for asset in data.get("assets", []):
+        name = str(asset.get("name", ""))
+        if name.lower().endswith(".exe"):
+            url = str(asset.get("browser_download_url", ""))
+            break
+
+    if version and url and is_newer(version):
         return UpdateInfo(version=version, url=url, notes=notes)
     return None
 

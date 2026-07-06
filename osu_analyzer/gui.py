@@ -64,6 +64,24 @@ def _load_round_avatar(url: str):
         return None
 
 
+def _load_flag(country_code: str):
+    """Laedt die Laenderflagge (flagcdn) als kleines CTkImage. Tolerant -> None bei Fehler."""
+    if not country_code or Image is None:
+        return None
+    try:
+        url = f"https://flagcdn.com/w40/{country_code.lower()}.png"
+        resp = requests.get(url, timeout=8)
+        resp.raise_for_status()
+        img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+        w, h = img.size
+        target_h = 15
+        target_w = max(1, round(w * target_h / h))
+        img = img.resize((target_w, target_h), Image.LANCZOS)
+        return ctk.CTkImage(light_image=img, dark_image=img, size=(target_w, target_h))
+    except Exception:
+        return None
+
+
 class PPCoachApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -75,6 +93,7 @@ class PPCoachApp(ctk.CTk):
 
         self._client = OsuApiClient()
         self._update_info = None
+        self._overlay = None
         self._build_layout()
         self._show_empty_state()
         self._check_updates_async()  # still im Hintergrund, stoert nie
@@ -117,8 +136,14 @@ class PPCoachApp(ctk.CTk):
             text_color=theme.POSITIVE_TEXT,
         )
 
-        # AI-Banner (Werbung + Info-Popup)
-        self.ai_banner = theme.GradientBanner(outer, on_click=self._show_ai_teaser)
+        # AI-Banner (Werbung + Info-Popup) - bewusst auffaellige Ad-Farbe (Cyan->
+        # Violett), die sich klar vom Rest abhebt.
+        self.ai_banner = theme.GradientBanner(
+            outer, on_click=self._show_ai_teaser,
+            text="AI Coach — dein persönlicher osu!-Coach",
+            height=76, badge="NEU", cta="Jetzt entdecken  ›",
+            colors=(theme.AI_GRADIENT_START, theme.AI_GRADIENT_END),
+        )
         self.ai_banner.pack(fill="x", pady=(16, 16))
 
         # Eingabe-Zeile
@@ -209,7 +234,7 @@ class PPCoachApp(ctk.CTk):
             accent=theme.DANGER, icon="⚠", wraplength=CONTENT_WRAP,
         ).grid(row=0, column=0, columnspan=2, sticky="ew", pady=(4, 0))
 
-    def _render_results(self, username, stats, findings, avatar_image):
+    def _render_results(self, username, stats, findings, avatar_image, flag_image=None):
         self._clear_content()
         statistics = stats.get("statistics", {})
         row = 0
@@ -230,13 +255,25 @@ class PPCoachApp(ctk.CTk):
         ).pack(anchor="w")
 
         country = stats.get("country_code", "")
-        rank_text = f"🌐  Global {theme.fmt_rank(statistics.get('global_rank'))}"
-        if statistics.get("country_rank"):
-            rank_text += f"    🏳  {country} {theme.fmt_rank(statistics.get('country_rank'))}"
+        rankrow = ctk.CTkFrame(info, fg_color="transparent")
+        rankrow.pack(anchor="w", pady=(6, 0))
         ctk.CTkLabel(
-            info, text=rank_text, font=theme.font(13, "bold"),
-            text_color=theme.ACCENT, anchor="w",
-        ).pack(anchor="w", pady=(6, 0))
+            rankrow, text=f"Global {theme.fmt_rank(statistics.get('global_rank'))}",
+            font=theme.font(13, "bold"), text_color=theme.ACCENT,
+        ).pack(side="left")
+        if statistics.get("country_rank"):
+            if flag_image is not None:
+                ctk.CTkLabel(rankrow, text="", image=flag_image).pack(
+                    side="left", padx=(14, 5))
+            else:
+                # Fallback ohne Bild: nur der Laendercode
+                ctk.CTkLabel(rankrow, text="  ·  ", font=theme.font(13),
+                             text_color=theme.TEXT_MUTED).pack(side="left")
+            ctk.CTkLabel(
+                rankrow,
+                text=f"{country} {theme.fmt_rank(statistics.get('country_rank'))}",
+                font=theme.font(13, "bold"), text_color=theme.TEXT_PRIMARY,
+            ).pack(side="left")
         row += 1
 
         # --- Stat-Karten ---------------------------------------------------
@@ -314,6 +351,7 @@ class PPCoachApp(ctk.CTk):
             scores = self._client.get_top_scores(stats["id"])
             findings = generate_report(stats, scores)
             avatar_image = _load_round_avatar(stats.get("avatar_url", ""))
+            flag_image = _load_flag(stats.get("country_code", ""))
         except (OsuApiError, ConfigError) as exc:
             self.after(0, self._on_error, str(exc))
             return
@@ -321,13 +359,14 @@ class PPCoachApp(ctk.CTk):
             self.after(0, self._on_error, f"Unerwarteter Fehler: {exc}")
             return
 
-        self.after(0, self._on_success, username, stats, findings, avatar_image)
+        self.after(0, self._on_success, username, stats, findings, avatar_image,
+                   flag_image)
 
-    def _on_success(self, username, stats, findings, avatar_image):
+    def _on_success(self, username, stats, findings, avatar_image, flag_image):
         set_last_username(username)
         self.status_label.configure(text="Analyse abgeschlossen ✓")
         self.analyze_button.configure(state="normal")
-        self._render_results(username, stats, findings, avatar_image)
+        self._render_results(username, stats, findings, avatar_image, flag_image)
 
     def _on_error(self, message: str):
         self.status_label.configure(text="Fehler")
@@ -346,14 +385,14 @@ class PPCoachApp(ctk.CTk):
             # Ein nicht erreichbarer Update-Server darf die App nie stoeren.
             if manual:
                 self.after(0, lambda: self.footer_label.configure(
-                    text=f"v{VERSION}  ·  Update-Check nicht möglich"))
+                    text=f"v{VERSION}  ·  Check nicht möglich  ·  erneut prüfen"))
             return
 
         if info:
             self.after(0, self._show_update_available, info)
         elif manual:
             self.after(0, lambda: self.footer_label.configure(
-                text=f"v{VERSION}  ·  du hast die neueste Version ✓"))
+                text=f"v{VERSION}  ·  neueste Version ✓  ·  erneut prüfen"))
 
     def _manual_check(self):
         self.footer_label.configure(text=f"v{VERSION}  ·  suche nach Updates …")
@@ -460,24 +499,40 @@ class PPCoachApp(ctk.CTk):
         later_btn.configure(state="normal")
         status.configure(text=f"Update fehlgeschlagen: {exc}")
 
-    # -- AI-Info-Popup ------------------------------------------------------
-    def _show_ai_teaser(self):
-        dialog = ctk.CTkToplevel(self)
-        dialog.title("AI Coach")
-        dialog.geometry("440x420")
-        dialog.resizable(False, False)
-        dialog.configure(fg_color=theme.BG_WINDOW)
-        dialog.transient(self)
+    # -- AI-Info-Popup (In-App-Overlay, kein separates Fenster) -------------
+    def _close_overlay(self):
+        overlay = getattr(self, "_overlay", None)
+        if overlay is not None and overlay.winfo_exists():
+            overlay.destroy()
+        self._overlay = None
+        self.unbind("<Escape>")
 
-        # Gradient-Kopf
+    def _show_ai_teaser(self):
+        self._close_overlay()
+
+        # Scrim: dunkler Vollflaechen-Layer ueber der ganzen App -> wirkt als
+        # In-App-Popup (modaler Look), oeffnet KEIN zweites Fenster.
+        scrim = ctk.CTkFrame(self, fg_color="#05060A", corner_radius=0)
+        scrim.place(relx=0, rely=0, relwidth=1, relheight=1)
+        scrim.bind("<Button-1>", lambda _e: self._close_overlay())  # ausserhalb = zu
+        self._overlay = scrim
+        self.bind("<Escape>", lambda _e: self._close_overlay())
+
+        card = ctk.CTkFrame(scrim, fg_color=theme.BG_CARD,
+                            corner_radius=theme.RADIUS_CARD, width=480, height=510)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+        card.pack_propagate(False)
+
+        # Gradient-Kopf in der gleichen auffaelligen AI-Werbefarbe wie der Banner
         header = theme.GradientBanner(
-            dialog, on_click=lambda: None, text="✨  AI Coach", height=76,
+            card, on_click=lambda: None, text="✨  AI Coach", height=72, cta="",
+            colors=(theme.AI_GRADIENT_START, theme.AI_GRADIENT_END),
         )
         header.configure(cursor="arrow")
         header.unbind("<Button-1>")
         header.pack(fill="x")
 
-        body = ctk.CTkFrame(dialog, fg_color="transparent")
+        body = ctk.CTkFrame(card, fg_color="transparent")
         body.pack(fill="both", expand=True, padx=24, pady=(18, 20))
 
         ctk.CTkLabel(
@@ -502,14 +557,11 @@ class PPCoachApp(ctk.CTk):
             self._teaser_bullet(body, icon, title, text)
 
         ctk.CTkButton(
-            body, text="Alles klar", command=dialog.destroy,
+            body, text="Alles klar", command=self._close_overlay,
             height=40, font=theme.font(13, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
             fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
         ).pack(fill="x", pady=(16, 0))
-
-        dialog.update_idletasks()
-        dialog.after(10, dialog.grab_set)  # nach dem Zeichnen modal setzen
 
     def _teaser_bullet(self, master, icon, title, text):
         row = ctk.CTkFrame(master, fg_color=theme.BG_CARD,
