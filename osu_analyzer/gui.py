@@ -113,8 +113,8 @@ class PPCoachApp(ctk.CTk):
             topbar, text="⬆  Update", command=self._open_update_dialog,
             height=30, width=110, font=theme.font(12, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.COLOR_GREEN, hover_color="#57E39A",
-            text_color="#0E2A1A",
+            fg_color=theme.POSITIVE, hover_color=theme.POSITIVE_HOVER,
+            text_color=theme.POSITIVE_TEXT,
         )
 
         # AI-Banner (Werbung + Info-Popup)
@@ -128,7 +128,7 @@ class PPCoachApp(ctk.CTk):
         self.username_entry = ctk.CTkEntry(
             input_frame, placeholder_text="osu! Nutzername eingeben …",
             height=44, font=theme.font(14), corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.BG_INPUT, border_color=theme.ACCENT_PURPLE, border_width=1,
+            fg_color=theme.BG_INPUT, border_color=theme.BORDER, border_width=1,
         )
         self.username_entry.pack(side="left", expand=True, fill="x", padx=(0, 10))
         self.username_entry.bind("<Return>", lambda _e: self._start_analysis())
@@ -140,7 +140,7 @@ class PPCoachApp(ctk.CTk):
             input_frame, text="Analysieren", command=self._start_analysis,
             height=44, width=140, font=theme.font(14, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.OSU_PINK, hover_color=theme.OSU_PINK_HOVER,
+            fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
             text_color=theme.TEXT_ON_ACCENT,
         )
         self.analyze_button.pack(side="left")
@@ -198,7 +198,7 @@ class PPCoachApp(ctk.CTk):
             card,
             text="✨  Noch tiefere, auf dich zugeschnittene Analysen? "
                  "Schau dir den AI Coach oben an.",
-            font=theme.font(12, "bold"), text_color=theme.ACCENT_PURPLE,
+            font=theme.font(12, "bold"), text_color=theme.ACCENT,
             justify="center",
         ).grid(row=3, column=0, pady=(0, 30), padx=20)
 
@@ -235,7 +235,7 @@ class PPCoachApp(ctk.CTk):
             rank_text += f"    🏳  {country} {theme.fmt_rank(statistics.get('country_rank'))}"
         ctk.CTkLabel(
             info, text=rank_text, font=theme.font(13, "bold"),
-            text_color=theme.OSU_PINK, anchor="w",
+            text_color=theme.ACCENT, anchor="w",
         ).pack(anchor="w", pady=(6, 0))
         row += 1
 
@@ -243,13 +243,15 @@ class PPCoachApp(ctk.CTk):
         level = statistics.get("level", {}) or {}
         stat_row = ctk.CTkFrame(self.content, fg_color="transparent")
         stat_row.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(0, 12))
+        # Nur der Kern-Wert (PP) traegt die Markenfarbe als Fokuspunkt; die uebrigen
+        # Werte bleiben neutral-hell -> ruhig und uebersichtlich.
         stats_data = [
-            (theme.fmt_pp(statistics.get("pp")), "Performance", theme.OSU_PINK),
+            (theme.fmt_pp(statistics.get("pp")), "Performance", theme.ACCENT),
             (theme.fmt_accuracy(statistics.get("hit_accuracy")), "Genauigkeit",
-             theme.COLOR_BLUE),
-            (str(level.get("current", "?")), "Level", theme.COLOR_GOLD),
+             theme.TEXT_PRIMARY),
+            (str(level.get("current", "?")), "Level", theme.TEXT_PRIMARY),
             (theme.fmt_hours(statistics.get("play_time")), "Spielzeit",
-             theme.COLOR_GREEN),
+             theme.TEXT_PRIMARY),
         ]
         for col, (value, label, accent) in enumerate(stats_data):
             stat_row.grid_columnconfigure(col, weight=1, uniform="stat")
@@ -287,7 +289,7 @@ class PPCoachApp(ctk.CTk):
         canvas = tk.Canvas(master, width=size, height=size, highlightthickness=0,
                            bd=0, bg=theme.BG_CARD_ALT)
         canvas.grid(row=0, column=0, padx=(18, 8), pady=18)
-        canvas.create_oval(0, 0, size, size, fill=theme.ACCENT_PURPLE, outline="")
+        canvas.create_oval(0, 0, size, size, fill=theme.ACCENT, outline="")
         initial = (username[:1] or "?").upper()
         canvas.create_text(size / 2, size / 2, text=initial,
                            font=(theme.FONT_FAMILY, 40, "bold"), fill="white")
@@ -401,7 +403,7 @@ class PPCoachApp(ctk.CTk):
         notes_box.insert("1.0", info.notes or "Keine Änderungshinweise angegeben.")
         notes_box.configure(state="disabled")
 
-        progress = ctk.CTkProgressBar(body, progress_color=theme.COLOR_GREEN)
+        progress = ctk.CTkProgressBar(body, progress_color=theme.POSITIVE)
         progress.set(0)
         status = ctk.CTkLabel(body, text="", font=theme.font(11),
                               text_color=theme.TEXT_MUTED)
@@ -419,7 +421,8 @@ class PPCoachApp(ctk.CTk):
         update_btn = ctk.CTkButton(
             button_row, text="Jetzt aktualisieren", height=40,
             corner_radius=theme.RADIUS_BUTTON, font=theme.font(13, "bold"),
-            fg_color=theme.COLOR_GREEN, hover_color="#57E39A", text_color="#0E2A1A",
+            fg_color=theme.POSITIVE, hover_color=theme.POSITIVE_HOVER,
+            text_color=theme.POSITIVE_TEXT,
         )
         update_btn.pack(side="right")
 
@@ -502,7 +505,7 @@ class PPCoachApp(ctk.CTk):
             body, text="Alles klar", command=dialog.destroy,
             height=40, font=theme.font(13, "bold"),
             corner_radius=theme.RADIUS_BUTTON,
-            fg_color=theme.ACCENT_PURPLE, hover_color=theme.ACCENT_PURPLE_HOVER,
+            fg_color=theme.ACCENT, hover_color=theme.ACCENT_HOVER,
         ).pack(fill="x", pady=(16, 0))
 
         dialog.update_idletasks()

@@ -1,6 +1,7 @@
 """Zentrale Design-Tokens und wiederverwendbare UI-Bausteine fuer PPCoach.
 
-Lila-dominant, dunkel, mit osu!-Pink als Akzent - abgestimmt auf osu!-Gamer.
+Minimalistisch & dunkel: neutrale Basis mit osu!-Pink als einziger Markenfarbe -
+abgestimmt auf osu!-Gamer.
 Alles CustomTkinter/Tkinter, damit die App weiterhin als eine einzelne .exe
 gebaut werden kann.
 """
@@ -9,44 +10,55 @@ import tkinter as tk
 
 import customtkinter as ctk
 
-# --- Farb-Palette ----------------------------------------------------------
-BG_WINDOW = "#0E0B14"       # Fensterhintergrund (fast schwarz, leicht violett)
-BG_CARD = "#1B1626"         # Karten-Oberflaeche
-BG_CARD_ALT = "#221B33"     # etwas hellere Karte (z.B. Hero-Header)
-BG_INPUT = "#241D33"        # Eingabefelder
+# --- Farb-Palette (minimalistisch & kohaerent) -----------------------------
+# Prinzip: neutrale, kuehle Dunkelbasis + EINE Markenfarbe (osu!-Pink), sparsam
+# eingesetzt. Kategorie-Akzente sind bewusst gedaempft und tonal aufeinander
+# abgestimmt (aehnliche Saettigung & Helligkeit) - sie wirken als Familie statt
+# bunt. Das haelt das Bild ruhig und modern, passend zur osu!-Identitaet.
 
-ACCENT_PURPLE = "#9B59FF"   # Leit-Akzent Lila
-ACCENT_PURPLE_HOVER = "#AA72FF"
-OSU_PINK = "#FF66AB"        # osu!-Pink als Highlight
-OSU_PINK_HOVER = "#FF7FB8"
+# Neutrale Basis
+BG_WINDOW = "#0F1115"       # Fensterhintergrund (kuehles Fast-Schwarz, neutral)
+BG_CARD = "#171A20"         # Karten-Oberflaeche
+BG_CARD_ALT = "#1D212A"     # leicht erhoehte Karte (z.B. Hero-Header)
+BG_INPUT = "#1A1E25"        # Eingabefelder
+BORDER = "#2A2F3A"          # dezente Linien/Raender
 
-TEXT_PRIMARY = "#F3EEFF"    # Haupttext
-TEXT_MUTED = "#A99FC0"      # gedaempfter Text
+TEXT_PRIMARY = "#EAECEF"    # Haupttext (kuehles Fast-Weiss)
+TEXT_MUTED = "#8B93A1"      # gedaempfter Text
 TEXT_ON_ACCENT = "#FFFFFF"
 
-DANGER = "#FF5C6C"          # Fehler/Hinweis-Karten
+# Markenfarbe: osu!-Pink - nur fuer primaere Aktionen & wichtige Highlights.
+ACCENT = "#FF6AA6"
+ACCENT_HOVER = "#FF85B6"
 
-# Erweiterte Akzentpalette, damit nicht alles nur lila/pink ist. Bewusst kraeftige,
-# aber auf dunklem Grund gut lesbare Farben.
-COLOR_BLUE = "#4EA1FF"
-COLOR_CYAN = "#22D3EE"
-COLOR_GREEN = "#3DDC84"
-COLOR_GOLD = "#FFC24B"
-COLOR_ORANGE = "#FF9F43"
-COLOR_RED = DANGER
+# Semantik
+POSITIVE = "#46B37E"        # "Update verfuegbar" / Erfolg (ruhiges Gruen)
+POSITIVE_HOVER = "#57C08E"
+POSITIVE_TEXT = "#08130C"   # dunkler Text auf hellem Gruen-Button
+DANGER = "#DB6B63"          # Fehler/Hinweis-Karten (gedaempftes Rot)
 
-# Kategorie -> (Symbol, Akzentfarbe). Simplistische, monochrome Glyphen; die Farbe
-# uebernimmt die Unterscheidung. "general" ist der Fallback fuer alle unbekannten
-# Faelle, damit wirklich jeder Tipp ein Symbol bekommt.
+# Gedaempfte, tonal abgestimmte Kategorie-Akzente (eine Farbfamilie).
+CAT_BLUE = "#6E9BD1"
+CAT_TEAL = "#5FB0A6"
+CAT_GREEN = "#79B58C"
+CAT_AMBER = "#D3A96B"
+CAT_ORANGE = "#CD8C66"
+CAT_ROSE = "#D97BA4"
+CAT_RED = "#D9776F"
+CAT_NEUTRAL = "#8B93A1"
+
+# Kategorie -> (Symbol, Akzentfarbe). Simplistische, monochrome Glyphen; die
+# gedaempfte Farbe kodiert die Kategorie, ohne das Bild bunt zu machen. "general"
+# ist der Fallback, damit wirklich jeder Tipp ein Symbol bekommt.
 CATEGORY_STYLE = {
-    "accuracy":    ("◎", COLOR_BLUE),
-    "mods":        ("↯", COLOR_GOLD),
-    "spread":      ("✦", ACCENT_PURPLE),
-    "consistency": ("≡", COLOR_CYAN),
-    "misses":      ("✕", COLOR_RED),
-    "playtime":    ("◷", COLOR_ORANGE),
-    "strategy":    ("➜", COLOR_GREEN),
-    "general":     ("◆", OSU_PINK),
+    "accuracy":    ("◎", CAT_BLUE),
+    "mods":        ("↯", CAT_AMBER),
+    "spread":      ("✦", CAT_ROSE),
+    "consistency": ("≡", CAT_TEAL),
+    "misses":      ("✕", CAT_RED),
+    "playtime":    ("◷", CAT_ORANGE),
+    "strategy":    ("➜", CAT_GREEN),
+    "general":     ("◆", CAT_NEUTRAL),
 }
 DEFAULT_CATEGORY = "general"
 
@@ -55,9 +67,10 @@ def category_style(category: str) -> tuple[str, str]:
     """Liefert (Symbol, Farbe) fuer eine Kategorie, mit sicherem Fallback."""
     return CATEGORY_STYLE.get(category, CATEGORY_STYLE[DEFAULT_CATEGORY])
 
-# Gradient-Endpunkte (Lila -> Pink) fuer den AI-Banner und Popup-Kopf
-GRADIENT_START = (155, 89, 255)   # #9B59FF
-GRADIENT_END = (255, 102, 171)    # #FF66AB
+# Gradient fuer AI-Banner/Popup-Kopf: ruhiger Ein-Ton-Verlauf (Rose -> osu!-Pink),
+# bleibt in der Markenfamilie statt Lila und Pink zu mischen.
+GRADIENT_START = (201, 92, 142)   # #C95C8E gedaempftes Rose
+GRADIENT_END = (255, 106, 166)    # #FF6AA6 osu!-Pink
 
 # Ecken-Radien
 RADIUS_CARD = 16
@@ -186,7 +199,7 @@ class GradientBanner(tk.Canvas):
 class StatCard(ctk.CTkFrame):
     """Kleine Kachel: grosser Wert oben, kleines Label darunter."""
 
-    def __init__(self, master, value: str, label: str, accent: str = ACCENT_PURPLE,
+    def __init__(self, master, value: str, label: str, accent: str = ACCENT,
                  **kwargs):
         super().__init__(master, fg_color=BG_CARD, corner_radius=RADIUS_CARD, **kwargs)
         self.grid_columnconfigure(0, weight=1)
@@ -203,7 +216,7 @@ class StatCard(ctk.CTkFrame):
 class TipCard(ctk.CTkFrame):
     """Tipp-Karte: farbiges Kategorie-Symbol links, Titel + umbrochener Body rechts."""
 
-    def __init__(self, master, title: str, body: str, accent: str = ACCENT_PURPLE,
+    def __init__(self, master, title: str, body: str, accent: str = ACCENT,
                  icon: str = "◆", wraplength: int = 280, **kwargs):
         super().__init__(master, fg_color=BG_CARD, corner_radius=RADIUS_CARD, **kwargs)
         self.grid_columnconfigure(1, weight=1)
